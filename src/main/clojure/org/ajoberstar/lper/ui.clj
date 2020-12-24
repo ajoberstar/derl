@@ -9,7 +9,7 @@
 (def *state 
   (atom (fx/create-context 
          {:repl-host "127.0.0.1"
-          :repl-port "40404"
+          :repl-port 40404
           :repl-conn nil
           :repl-input "{:a 1}"
           :repl-results ["I'm a lper"]
@@ -29,14 +29,14 @@
                   :severity :warning
                   :message "Already connected to a REPL, must disconnect before connecting again"]]
       
-      (and host port)
+      (and (string? host) (int? port))
       [[:connect {:repl-host host 
                   :repl-port port}]]
       
       :else
       [[:dispatch {:event/type ::status}
                   :severity :warning
-                  :message "Must provide both host and port to connext"]])))
+                  :message "Must provide both host and port to connect"]])))
     
 
 (defmethod event-handler ::disconnect [{:keys [fx/context]}]
@@ -81,8 +81,10 @@
       (async/go-loop []
         (when-let [msg (async/<! (:in-chan conn))]
           (println (pr-str msg))
+          (dispatch! {:event/type ::result
+                      :result msg})
           (recur)))
-      (dispatch! {:event/type ::set-connection
+      (dispatch! {:event/type ::on-connection
                   :conn conn})
       (dispatch! {:event/type ::status
                   :severity :info
@@ -95,7 +97,7 @@
 (defn disconnect-effect [{:keys [repl-host repl-port repl-conn]} dispatch!]
   (try
     (core/close repl-conn)
-    (dispatch! {:event/type ::set-connection
+    (dispatch! {:event/type ::on-connection
                 :conn nil})
     (dispatch! {:event/type ::status
                 :severity :info
@@ -107,8 +109,8 @@
 
 (defn eval-effect [{:keys [repl-conn repl-input]} dispatch!]
   (try
-    (let [form (edn/read-string repl-input)]
-      (async/>!! (:out-chan repl-conn) form))
+    (let [_ (edn/read-string repl-input)]
+      (async/>!! (:out-chan repl-conn) repl-input))
     (catch Exception e
       (dispatch! {:event/type ::status
                   :severity :error
@@ -120,8 +122,8 @@
   {:fx/type :stage
    :showing true
    :title "lper"
-   :width 960
-   :height 400
+   :width 400
+   :height 600
    :scene {:fx/type :scene
            :root {:fx/type :grid-pane
                   :padding 10
@@ -140,22 +142,21 @@
                                      :percent-height 25}
                                     {:fx/type :row-constraints
                                      :percent-height 10}]
-                  :children [{:fx/type :text-area
+                  :children [{:fx/type :text-field
                               :grid-pane/row 0
                               :grid-pane/column 0
                               :style {:-fx-font-family "monospace"}
                               :text (fx/sub-val context :repl-host)
                               :on-text-changed {:event/type ::host-changed}}
-                             {:fx/type :text-area
+                             {:fx/type :text-field
                               :grid-pane/row 0
                               :grid-pane/column 1
                               :style {:-fx-font-family "monospace"}
-                              :text (fx/sub-val context :repl-port)
+                              :text (str (fx/sub-val context :repl-port))
                               :on-text-changed {:event/type ::port-changed}}
                              {:fx/type :button
                               :grid-pane/row 0
                               :grid-pane/column 2
-                              :style {:-fx-font-family "monospace"}
                               :text (if (fx/sub-val context :repl-conn)
                                       "Disconnect"
                                       "Connect")
@@ -177,10 +178,15 @@
                               :style {:-fx-font-family "monospace"}
                               :text (fx/sub-val context :repl-input)
                               :on-text-changed {:event/type ::input-changed}}
-                             {:fx/type :label
+                             {:fx/type :button
                               :grid-pane/row 3
                               :grid-pane/column 0
-                              :grid-pane/column-span 3
+                              :text "Eval"
+                              :on-action {:event/type ::eval}}
+                             {:fx/type :label
+                              :grid-pane/row 3
+                              :grid-pane/column 1
+                              :grid-pane/column-span 2
                               :text (fx/sub-val context get-in [:status :message])}]}}})
 
 (defn start []
@@ -193,7 +199,7 @@
              :dispatch fx/dispatch-effect
              :connect connect-effect
              :disconnect disconnect-effect
-             :eval :eval-effect}))
+             :eval eval-effect}))
 
 (defn stop [{:keys [renderer]}]
   (fx/unmount-renderer *state renderer))

@@ -42,7 +42,7 @@
       (if-let [output (async/<! ch)]
         (do
           (println "Processing output:" output)
-          (.println wrtr (pr-str output))
+          (.println wrtr output)
           (recur))
         (println "Done looping for output")))
     ch))
