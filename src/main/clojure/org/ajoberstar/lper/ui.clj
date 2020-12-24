@@ -204,6 +204,9 @@
 (defn stop [{:keys [renderer]}]
   (fx/unmount-renderer *state renderer))
 
+(defn -main [& args]
+  (start))
+
 (comment
   (def app (start))
   (stop app)
