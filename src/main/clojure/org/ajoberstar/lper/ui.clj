@@ -12,9 +12,9 @@
           :repl-port 40404
           :repl-conn nil
           :repl-input "{:a 1}"
-          :repl-results ["I'm a lper"]
+          :repl-results []
           :status {:severity :info
-                   :message "Nothing happened yet"}}
+                   :message "Not connected"}}
          cache/lru-cache-factory)))
 
 (defmulti event-handler :event/type)
@@ -94,18 +94,18 @@
                   :severity :error
                   :message (str "Failed to connect to " repl-host ":" repl-port " -> " (.getMessage e))}))))
 
-(defn disconnect-effect [{:keys [repl-host repl-port repl-conn]} dispatch!]
+(defn disconnect-effect [{:keys [repl-conn]} dispatch!]
   (try
     (core/close repl-conn)
     (dispatch! {:event/type ::on-connection
                 :conn nil})
     (dispatch! {:event/type ::status
                 :severity :info
-                :message (str "Disconnected from " repl-host ":" repl-port)})
+                :message (str "Disconnected from REPL")})
     (catch Exception e
       (dispatch! {:event/type ::status
                   :severity :error
-                  :message (str "Error disconnecting from " repl-host ":" repl-port " -> " (.getMessage e))}))))
+                  :message (str "Error disconnecting from REPL -> " (.getMessage e))}))))
 
 (defn eval-effect [{:keys [repl-conn repl-input]} dispatch!]
   (try
@@ -116,7 +116,7 @@
                   :severity :error
                   :message (str "Cannot read form")})
       (dispatch! {:event/type ::result
-                  :result e}))))
+                  :result {:tag :client-err :val (pr-str e) :exception? true}}))))
 
 (defn root [{:keys [fx/context]}]
   {:fx/type :stage
