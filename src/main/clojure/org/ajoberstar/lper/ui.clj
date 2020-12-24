@@ -66,7 +66,14 @@
              :repl-input input}]]))
 
 (defmethod event-handler ::result [{:keys [fx/context result]}]
-  [[:context (fx/swap-context context update :repl-results conj result)]])
+  [[:context (fx/swap-context context update :repl-results conj result)]
+   (if (:ms result)
+     [:dispatch {:event/type ::status
+                 :severity :info
+                 :message (str "Completed in " (:ms result) "ms")}]
+     [:dispatch {:event/type ::status
+                 :severity :info
+                 :message ""}])])
 
 (defmethod event-handler ::on-connection [{:keys [fx/context conn]}]
   [[:context (fx/swap-context context assoc :repl-conn conn)]])
