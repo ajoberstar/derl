@@ -47,8 +47,14 @@
 (defmethod event-handler ::eval [{:keys [fx/context]}]
   (let [conn (fx/sub-val context :repl-conn)
         input (fx/sub-val context :repl-input)]
-    [[:eval {:repl-conn conn
-             :repl-input input}]]))
+    (when (and conn input)
+      [[:eval {:repl-conn conn
+               :repl-input input}]])))
+
+(defmethod event-handler ::clear [{:keys [fx/context]}]
+  [[:context (-> context
+                 (fx/swap-context assoc :repl-results [])
+                 (fx/swap-context assoc :repl-results-scroll 0))]])
 
 (defn conj-result [ctx result]
   (let [ctx (update ctx :repl-results conj result)]

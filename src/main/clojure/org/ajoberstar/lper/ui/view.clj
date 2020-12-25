@@ -88,10 +88,15 @@
 
 (defn action-pane [{:keys [fx/context]}]
   {:fx/type :anchor-pane
-   :children [{:fx/type :button
+   :children [{:fx/type :h-box
                :anchor-pane/left 0
-               :text "Eval"
-               :on-action {::event/type ::event/eval}}
+               :spacing 10
+               :children [{:fx/type :button
+                           :text "Eval"
+                           :on-action {::event/type ::event/eval}}
+                          {:fx/type :button
+                           :text "Clear"
+                           :on-action {::event/type ::event/clear}}]}
               {:fx/type :label
                :anchor-pane/right 0
                :style {:-fx-text-fill (let [severity (fx/sub-val context get-in [:status :severity])]

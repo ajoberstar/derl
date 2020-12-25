@@ -13,7 +13,7 @@
    :repl-input "{:a 1}"
    :repl-results []
    :repl-results-scroll 0
-   :status {:severity :info
+   :status {:severity :warning
             :message "Not connected"}})
 
 (defonce *state (atom nil))
