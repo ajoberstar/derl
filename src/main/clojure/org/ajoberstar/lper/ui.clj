@@ -1,22 +1,29 @@
 (ns org.ajoberstar.lper.ui
   (:require [cljfx.api :as fx]
             [clojure.core.cache :as cache]
+            [org.ajoberstar.lper.core :as core]
             [org.ajoberstar.lper.ui.effect :as effect]
             [org.ajoberstar.lper.ui.event :as event]
             [org.ajoberstar.lper.ui.view :as view]))
 
-(def *state 
-  (atom (fx/create-context 
-         {:repl-host "127.0.0.1"
-          :repl-port 40404
-          :repl-conn nil
-          :repl-input "{:a 1}"
-          :repl-results []
-          :status {:severity :info
-                   :message "Not connected"}}
-         cache/lru-cache-factory)))
+(def initial-state
+  {:repl-host "127.0.0.1"
+   :repl-port 40404
+   :repl-conn nil
+   :repl-input "{:a 1}"
+   :repl-results []
+   :status {:severity :info
+            :message "Not connected"}})
+
+(def *state (atom nil))
+
+(defn reset-state []
+  (reset! *state (fx/create-context 
+                  initial-state
+                  cache/lru-cache-factory)))
 
 (defn start []
+  (reset-state)
   (fx/create-app
    *state
    :event-handler event/event-handler
@@ -29,7 +36,9 @@
              :eval effect/eval}))
 
 (defn stop [{:keys [renderer]}]
-  (fx/unmount-renderer *state renderer))
+  (fx/unmount-renderer *state renderer)
+  (when-let [conn (fx/sub-val @*state :repl-conn)]
+    (core/close conn)))
 
 (comment
   (def app (start))
