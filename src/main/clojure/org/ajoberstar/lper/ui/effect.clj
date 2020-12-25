@@ -22,7 +22,7 @@
     (catch Exception e
       (dispatch! {::event/type ::event/status
                   :severity :error
-                  :message (str "Failed to connect to " repl-host ":" repl-port " -> " (.getMessage e))}))))
+                  :message (str "Failed to connect to " repl-host ":" repl-port "\n-> " (.getMessage e))}))))
 
 (defn disconnect [{:keys [repl-conn]} dispatch!]
   (try
@@ -35,7 +35,7 @@
     (catch Exception e
       (dispatch! {::event/type ::event/status
                   :severity :error
-                  :message (str "Error disconnecting from REPL -> " (.getMessage e))}))))
+                  :message (str "Error disconnecting from REPL\n-> " (.getMessage e))}))))
 
 (defn eval [{:keys [repl-conn repl-input]} dispatch!]
   (try

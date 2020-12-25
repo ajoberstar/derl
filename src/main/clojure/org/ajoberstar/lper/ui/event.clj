@@ -11,8 +11,8 @@
     (cond
       conn
       [[:dispatch {::type ::status
-                   :severity :warning
-                   :message "Already connected to a REPL, must disconnect before connecting again"}]]
+                   :severity :error
+                   :message "Already connected to a REPL"}]]
       
       (and (string? host) (int? port))
       [[:connect {:repl-host host 
@@ -20,7 +20,7 @@
       
       :else
       [[:dispatch {::type ::status
-                   :severity :warning
+                   :severity :error
                    :message "Must provide both host and port to connect"}]])))
     
 
@@ -32,8 +32,8 @@
       
       :else
       [[:dispatch {::type ::status
-                   :severity :warning
-                   :message "Not connected to a REPL, cannot disconnect"}]])))
+                   :severity :error
+                   :message "Not connected to a REPL"}]])))
     
 (defmethod event-handler ::host-changed [{:keys [fx/event fx/context]}]
   [[:context (fx/swap-context context assoc :repl-host event)]])
