@@ -15,15 +15,18 @@
    :status {:severity :info
             :message "Not connected"}})
 
-(def *state (atom nil))
+(defonce *state (atom initial-state))
 
 (defn reset-state []
+  (some-> @*state
+          :cljfx.context/m
+          :repl-conn
+          core/close)
   (reset! *state (fx/create-context 
                   initial-state
                   cache/lru-cache-factory)))
 
 (defn start []
-  (reset-state)
   (fx/create-app
    *state
    :event-handler event/event-handler
@@ -36,12 +39,12 @@
              :eval effect/eval}))
 
 (defn stop [{:keys [renderer]}]
-  (fx/unmount-renderer *state renderer)
-  (when-let [conn (fx/sub-val @*state :repl-conn)]
-    (core/close conn)))
+  (fx/unmount-renderer *state renderer))
 
 (comment
   (def app (start))
   (stop app)
+
+  (reset-state)
 
   [])
