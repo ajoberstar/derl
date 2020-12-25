@@ -38,12 +38,14 @@
    {:fx/type :h-box
     :spacing 10
     :children [{:fx/type :text-field
-                :style {:-fx-font-family "monospace"}
+                :style {:-fx-font-family "monospace"
+                        :-fx-control-inner-background (if editable? "white" "lightgray")}
                 :editable editable?
                 :text (fx/sub-val context :repl-host)
                 :on-text-changed {::event/type ::event/host-changed}}
                {:fx/type :text-field
-                :style {:-fx-font-family "monospace"}
+                :style {:-fx-font-family "monospace"
+                        :-fx-control-inner-background (if editable? "white" "lightgray")}
                 :editable editable?
                 :text-formatter {:fx/type :text-formatter
                                  :value-converter :long
