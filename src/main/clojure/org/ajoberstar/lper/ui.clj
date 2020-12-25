@@ -1,4 +1,5 @@
 (ns org.ajoberstar.lper.ui
+  {:clojure.tools.namespace.repl/unload false}
   (:require [cljfx.api :as fx]
             [clojure.core.cache :as cache]
             [org.ajoberstar.lper.core :as core]

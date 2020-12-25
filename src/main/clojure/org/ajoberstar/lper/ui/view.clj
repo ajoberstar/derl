@@ -70,7 +70,12 @@
           :items (fx/sub-val context :repl-results)
           :cell-factory {:fx/cell-type :list-cell
                          :describe (fn [result]
-                                     {:text (:val result)})}
+                                     {:style {:-fx-text-fill (cond
+                                                               (= :err (:tag result)) "orange"
+                                                               (= :out (:tag result)) "blue"
+                                                               (:exception result) "red"
+                                                               :else "black")}
+                                      :text (:val result)})}
           :on-scroll-to {::event/type ::event/results-scroll}}})
 
 (defn input-pane [{:keys [fx/context]}]
