@@ -28,7 +28,7 @@
                      (.selectRange 1 1)))
              change))))
 
-(defn toolbar [{:keys [fx/context]}]
+(defn toolbar-pane [{:keys [fx/context]}]
   (let [connected? (boolean (fx/sub-val context :repl-conn))
         editable? (not connected?)
         button-text (if connected? "Disconnect" "Connect")
@@ -51,6 +51,32 @@
                 :text button-text
                 :on-action {::event/type button-event}}]}))
 
+(defn results-pane [{:keys [fx/context]}]
+  {:fx/type :scroll-pane
+   :content {:fx/type :label
+             :style {:-fx-font-family "monospace"}
+             :wrap-text true
+             :text (string/join "\n" (fx/sub-val context :repl-results))}})
+
+(defn input-pane [{:keys [fx/context]}]
+  {:fx/type :text-area
+   :style {:-fx-font-family "monospace"}
+   :text-formatter {:fx/type :text-formatter
+                    :value-converter :default
+                    :value (fx/sub-val context :repl-input)
+                    ;;:filter parinfer-formatter
+                    :on-value-changed {::event/type ::event/input-changed}}})
+
+(defn action-pane [{:keys [fx/context]}]
+  {:fx/type :anchor-pane
+   :children [{:fx/type :button
+               :anchor-pane/left 0
+               :text "Eval"
+               :on-action {::event/type ::event/eval}}
+              {:fx/type :label
+               :anchor-pane/right 0
+               :text (fx/sub-val context get-in [:status :message])}]})
+
 (defn root [{:keys [fx/context]}]
   {:fx/type :stage
    :showing true
@@ -58,52 +84,11 @@
    :width 400
    :height 600
    :scene {:fx/type :scene
-           :root {:fx/type :grid-pane
+           :root {:fx/type :v-box
                   :padding 10
-                  :hgap 10
-                  :column-constraints [{:fx/type :column-constraints
-                                        :percent-width 100/3}
-                                       {:fx/type :column-constraints
-                                        :percent-width 100/3}
-                                       {:fx/type :column-constraints
-                                        :percent-width 100/3}]
-                  :row-constraints [{:fx/type :row-constraints
-                                     :percent-height 10}
-                                    {:fx/type :row-constraints
-                                     :percent-height 55}
-                                    {:fx/type :row-constraints
-                                     :percent-height 25}
-                                    {:fx/type :row-constraints
-                                     :percent-height 10}]
-                  :children [{:fx/type toolbar
-                              :grid-pane/row 0
-                              :grid-pane/column 0
-                              :grid-pane/column-span 3}
-                             {:fx/type :scroll-pane
-                              :grid-pane/row 1
-                              :grid-pane/column 0
-                              :grid-pane/column-span 3
-                              :content {:fx/type :label
-                                        :style {:-fx-font-family "monospace"}
-                                        :wrap-text true
-                                        :text (string/join "\n" (fx/sub-val context :repl-results))}}
-                             {:fx/type :text-area
-                              :grid-pane/row 2
-                              :grid-pane/column 0
-                              :grid-pane/column-span 3
-                              :style {:-fx-font-family "monospace"}
-                              :text-formatter {:fx/type :text-formatter
-                                               :value-converter :default
-                                               :value (fx/sub-val context :repl-input)
-                                               ;;:filter parinfer-formatter
-                                               :on-value-changed {::event/type ::event/input-changed}}}
-                             {:fx/type :button
-                              :grid-pane/row 3
-                              :grid-pane/column 0
-                              :text "Eval"
-                              :on-action {::event/type ::event/eval}}
-                             {:fx/type :label
-                              :grid-pane/row 3
-                              :grid-pane/column 1
-                              :grid-pane/column-span 2
-                              :text (fx/sub-val context get-in [:status :message])}]}}})
+                  :spacing 10
+                  :children [{:fx/type toolbar-pane}
+                             {:fx/type results-pane
+                              :v-box/vgrow :always}
+                             {:fx/type input-pane}
+                             {:fx/type action-pane}]}}})
