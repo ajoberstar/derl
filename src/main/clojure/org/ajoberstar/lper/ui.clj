@@ -1,5 +1,4 @@
 (ns org.ajoberstar.lper.ui
-  {:clojure.tools.namespace.repl/unload false}
   (:require [cljfx.api :as fx]
             [clojure.core.cache :as cache]
             [org.ajoberstar.lper.core :as core]
@@ -43,7 +42,8 @@
              :eval effect/eval}))
 
 (defn stop [{:keys [renderer]}]
-  (fx/unmount-renderer *state renderer))
+  (fx/unmount-renderer *state renderer)
+  (reset-state))
 
 (comment
   (def app (start))

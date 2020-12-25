@@ -95,6 +95,8 @@
                :on-action {::event/type ::event/eval}}
               {:fx/type :label
                :anchor-pane/right 0
+               :style {:-fx-text-fill (let [severity (fx/sub-val context get-in [:status :severity])]
+                                        ({:error "red" :warning "orange" :info "black"} severity))}
                :text (fx/sub-val context get-in [:status :message])}]})
 
 (defn root [{:keys [fx/context]}]

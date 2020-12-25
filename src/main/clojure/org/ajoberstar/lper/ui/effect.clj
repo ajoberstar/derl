@@ -18,7 +18,7 @@
       (dispatch! {::event/type ::event/on-connection
                   :conn conn})
       (dispatch! {::event/type ::event/status
-                  :severity :info
+                  :severity :warning
                   :message (str "Connected to " repl-host ":" repl-port)}))
     (catch Exception e
       (dispatch! {::event/type ::event/status
@@ -31,7 +31,7 @@
     (dispatch! {::event/type ::event/on-connection
                 :conn nil})
     (dispatch! {::event/type ::event/status
-                :severity :info
+                :severity :warning
                 :message (str "Disconnected from REPL")})
     (catch Exception e
       (dispatch! {::event/type ::event/status

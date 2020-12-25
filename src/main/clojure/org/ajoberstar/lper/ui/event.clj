@@ -56,16 +56,23 @@
 
 (defmethod event-handler ::result [{:keys [fx/context result]}]
   [[:context (fx/swap-context context conj-result result)]
-   (if (:ms result)
+   (cond
+     (:ms result)
      [:dispatch {::type ::status
                  :severity :info
                  :message (str "Completed in " (:ms result) "ms")}]
+
+     (:exception result)
+     [:dispatch {::type ::status
+                 :severity :error
+                 :message "Evaluation failed"}]
+
+     :else
      [:dispatch {::type ::status
                  :severity :info
                  :message ""}])])
 
 (defmethod event-handler ::results-scroll [{:keys [fx/event fx/context]}]
-  (println "Scrolling:" event)
   (let [scroll-index (.getScrollTarget ^ScrollToEvent event)]
     [[:context (fx/swap-context context assoc :repl-results-scroll scroll-index)]]))
 
