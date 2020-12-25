@@ -46,4 +46,4 @@
                   :severity :error
                   :message (str "Cannot read form")})
       (dispatch! {::event/type ::event/result
-                  :result {:tag :client-err :val (pr-str e) :exception true}}))))
+                  :result {:tag :lper/err :val (pr-str e) :exception true}}))))

@@ -3,6 +3,8 @@
             [cljfx.lifecycle :as lifecycle]
             [cljfx.mutator :as mutator]
             [cljfx.prop :as prop]
+            [clojure.edn :as edn]
+            [clojure.pprint :as pprint]
             [org.ajoberstar.lper.ui.event :as event]
             [parinferish.core :as parinfer])
   (:import [java.util.function UnaryOperator]
@@ -62,6 +64,33 @@
                                   (.scrollTo instance value)))
                 lifecycle/scalar)}))
 
+(defn result-cell [result]
+  (let [pretty-val (when-let [val (:val result)]
+                     (try
+                       (with-out-str
+                         (pprint/pprint (edn/read-string val)))
+                       (catch Exception _
+                         val)))]
+    (cond
+      (:exception result)
+      {:style {:-fx-text-fill "red"}
+       :text (str (:ns result) "=> " (:form result) "\n" pretty-val)}
+
+      (= :ret (:tag result))
+      {:style {:-fx-text-fill "black"}
+       :text (str (:ns result) "=> " (:form result) "\n" pretty-val)}
+
+      (= :out (:tag result))
+      {:style {:-fx-text-fill "blue"}
+       :text (:val result)}
+
+      (= :err (:tag result))
+      {:style {:-fx-text-fill "orange"}
+       :text (:val result)}
+
+      :else
+      {:text (str "Unknown result value\n  " result)})))
+
 (defn results-pane [{:keys [fx/context]}]
   {:fx/type list-with-scroll-props
    :props {:scroll-to (fx/sub-val context :repl-results-scroll)}
@@ -70,13 +99,7 @@
           :editable false
           :items (fx/sub-val context :repl-results)
           :cell-factory {:fx/cell-type :list-cell
-                         :describe (fn [result]
-                                     {:style {:-fx-text-fill (cond
-                                                               (= :err (:tag result)) "orange"
-                                                               (= :out (:tag result)) "blue"
-                                                               (:exception result) "red"
-                                                               :else "black")}
-                                      :text (:val result)})}
+                         :describe result-cell}
           :on-scroll-to {::event/type ::event/results-scroll}}})
 
 (defn input-pane [{:keys [fx/context]}]
