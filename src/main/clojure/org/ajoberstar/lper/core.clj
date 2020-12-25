@@ -23,28 +23,28 @@
   (let [ch (async/chan 100)]
     (async/thread
       (loop []
-        (println "Waiting for input...")
+        (tap> {:tag ::logging :message "Waiting for input..."})
         (if (try
               (when-let [input (edn/read {:eof false} rdr)]
-                (println "Processing input:" input)
+                (tap> {:tag ::logging :message "Received input" :data input})
                 (async/>!! ch input)
                 true)
               (catch IOException _
                 false))
           (recur)
-          (println "Done looping for input"))))
+          (tap> {:tag ::logging :message "Done looping for input"}))))
     ch))
 
 (defn output-channel [wrtr]
   (let [ch (async/chan 3)]
     (async/go-loop []
-      (println "Waiting for output...")
+      (tap> {:tag ::logging :message "Waiting for output..."})
       (if-let [output (async/<! ch)]
         (do
-          (println "Processing output:" output)
+          (tap> {:tag ::logging :message "Sending output" :data output})
           (.println wrtr output)
           (recur))
-        (println "Done looping for output")))
+        (tap> {:tag ::logging :message "Done looping for output"})))
     ch))
       
 (defn connect [host port]

@@ -24,7 +24,6 @@
                                                     :cursor-column pos
                                                     :cursor-line 0})
                    new-text (parinfer/flatten parsed)]
-               (println parsed)
                (doto (.clone change)
                      (.setText new-text)
                      (.setRange 0 (.length (.getControlText change)))

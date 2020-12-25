@@ -39,7 +39,7 @@
   [[:context (fx/swap-context context assoc :repl-host event)]])
 
 (defmethod event-handler ::port-changed [{:keys [fx/event fx/context]}]
-  [[:context (fx/swap-context context assoc :repl-port (Integer/parseInt event))]])
+  [[:context (fx/swap-context context assoc :repl-port event)]])
 
 (defmethod event-handler ::input-changed [{:keys [fx/event fx/context]}]
   [[:context (fx/swap-context context assoc :repl-input event)]])

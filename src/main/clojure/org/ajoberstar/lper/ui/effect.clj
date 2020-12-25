@@ -11,7 +11,6 @@
     (let [conn (core/connect repl-host repl-port)]
       (async/go-loop []
         (when-let [msg (async/<! (:in-chan conn))]
-          (println (pr-str msg))
           (dispatch! {::event/type ::event/result
                       :result msg})
           (recur)))
