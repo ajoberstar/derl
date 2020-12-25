@@ -1,9 +1,12 @@
 (ns org.ajoberstar.lper.ui.view
   (:require [cljfx.api :as fx]
-            [clojure.string :as string]
+            [cljfx.lifecycle :as lifecycle]
+            [cljfx.mutator :as mutator]
+            [cljfx.prop :as prop]
             [org.ajoberstar.lper.ui.event :as event]
             [parinferish.core :as parinfer])
-  (:import [java.util.function UnaryOperator]))
+  (:import [java.util.function UnaryOperator]
+           [javafx.scene.control ListView]))
 
 (defn cursor [text pos]
   (loop [column 0
@@ -51,12 +54,24 @@
                 :text button-text
                 :on-action {::event/type button-event}}]}))
 
+(def list-with-scroll-props
+  (fx/make-ext-with-props
+   {:scroll-to (prop/make
+                (mutator/setter (fn [^ListView instance ^long value]
+                                  (.scrollTo instance value)))
+                lifecycle/scalar)}))
+
 (defn results-pane [{:keys [fx/context]}]
-  {:fx/type :scroll-pane
-   :content {:fx/type :label
-             :style {:-fx-font-family "monospace"}
-             :wrap-text true
-             :text (string/join "\n" (fx/sub-val context :repl-results))}})
+  {:fx/type list-with-scroll-props
+   :props {:scroll-to (fx/sub-val context :repl-results-scroll)}
+   :desc {:fx/type :list-view
+          :style {:-fx-font-family "monospace"}
+          :editable false
+          :items (fx/sub-val context :repl-results)
+          :cell-factory {:fx/cell-type :list-cell
+                         :describe (fn [result]
+                                     {:text (:val result)})}
+          :on-scroll-to {::event/type ::event/results-scroll}}})
 
 (defn input-pane [{:keys [fx/context]}]
   {:fx/type :text-area

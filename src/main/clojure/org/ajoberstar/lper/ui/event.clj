@@ -1,5 +1,6 @@
 (ns org.ajoberstar.lper.ui.event
-  (:require [cljfx.api :as fx]))
+  (:require [cljfx.api :as fx])
+  (:import [javafx.scene.control ScrollToEvent]))
 
 (defmulti event-handler ::type)
 
@@ -49,8 +50,12 @@
     [[:eval {:repl-conn conn
              :repl-input input}]]))
 
+(defn conj-result [ctx result]
+  (let [ctx (update ctx :repl-results conj result)]
+    (assoc ctx :repl-results-scroll (-> ctx :repl-results count dec))))
+
 (defmethod event-handler ::result [{:keys [fx/context result]}]
-  [[:context (fx/swap-context context update :repl-results conj result)]
+  [[:context (fx/swap-context context conj-result result)]
    (if (:ms result)
      [:dispatch {::type ::status
                  :severity :info
@@ -58,6 +63,11 @@
      [:dispatch {::type ::status
                  :severity :info
                  :message ""}])])
+
+(defmethod event-handler ::results-scroll [{:keys [fx/event fx/context]}]
+  (println "Scrolling:" event)
+  (let [scroll-index (.getScrollTarget ^ScrollToEvent event)]
+    [[:context (fx/swap-context context assoc :repl-results-scroll scroll-index)]]))
 
 (defmethod event-handler ::on-connection [{:keys [fx/context conn]}]
   [[:context (fx/swap-context context assoc :repl-conn conn)]])

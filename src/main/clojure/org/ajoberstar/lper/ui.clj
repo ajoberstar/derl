@@ -12,10 +12,11 @@
    :repl-conn nil
    :repl-input "{:a 1}"
    :repl-results []
+   :repl-results-scroll 0
    :status {:severity :info
             :message "Not connected"}})
 
-(defonce *state (atom initial-state))
+(defonce *state (atom nil))
 
 (defn reset-state []
   (some-> @*state
@@ -27,6 +28,8 @@
                   cache/lru-cache-factory)))
 
 (defn start []
+  (when (nil? @*state)
+    (reset-state))
   (fx/create-app
    *state
    :event-handler event/event-handler
