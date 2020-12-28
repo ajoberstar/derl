@@ -17,4 +17,7 @@
   :dev
   {:extra-paths ["src/dev/clojure" "src/dev/resources"]
    :extra-deps
-   {org.clojure/tools.namespace {:mvn/version "1.1.0"}}}}}
+   {org.clojure/tools.namespace {:mvn/version "1.1.0"}}}
+   
+  :derl
+  {:main-opts ["-m" "org.ajoberstar.derl.ui"]}}}

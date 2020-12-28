@@ -1,4 +1,4 @@
-(ns org.ajoberstar.lper.core
+(ns org.ajoberstar.derl.core
   (:require [clojure.core.async :as async]
             [clojure.edn :as edn])
   (:import [java.io IOException InputStreamReader BufferedReader PushbackReader OutputStreamWriter BufferedWriter PrintWriter]

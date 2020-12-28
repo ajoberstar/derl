@@ -1,6 +1,6 @@
 (ns dev
   (:require [clojure.tools.namespace.repl :as repl]
-            [org.ajoberstar.lper.ui :as ui]))
+            [org.ajoberstar.derl.ui :as ui]))
 
 (def app nil)
 

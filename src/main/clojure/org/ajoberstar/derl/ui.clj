@@ -1,10 +1,11 @@
-(ns org.ajoberstar.lper.ui
+(ns org.ajoberstar.derl.ui
   (:require [cljfx.api :as fx]
             [clojure.core.cache :as cache]
-            [org.ajoberstar.lper.core :as core]
-            [org.ajoberstar.lper.ui.effect :as effect]
-            [org.ajoberstar.lper.ui.event :as event]
-            [org.ajoberstar.lper.ui.view :as view]))
+            [org.ajoberstar.derl.core :as core]
+            [org.ajoberstar.derl.ui.effect :as effect]
+            [org.ajoberstar.derl.ui.event :as event]
+            [org.ajoberstar.derl.ui.view :as view])
+  (:import [javafx.application Platform]))
 
 (def initial-state
   {:repl-host "127.0.0.1"
@@ -44,6 +45,10 @@
 (defn stop [{:keys [renderer]}]
   (fx/unmount-renderer *state renderer)
   (reset-state))
+
+(defn -main [& args]
+  (Platform/setImplicitExit true)
+  (start))
 
 (comment
   (def app (start))

@@ -1,11 +1,11 @@
-(ns org.ajoberstar.lper.ui.view
+(ns org.ajoberstar.derl.ui.view
   (:require [cljfx.api :as fx]
             [cljfx.lifecycle :as lifecycle]
             [cljfx.mutator :as mutator]
             [cljfx.prop :as prop]
             [clojure.edn :as edn]
             [clojure.pprint :as pprint]
-            [org.ajoberstar.lper.ui.event :as event]
+            [org.ajoberstar.derl.ui.event :as event]
             [parinferish.core :as parinfer])
   (:import [java.util.function UnaryOperator]
            [javafx.scene.control ListView]))
@@ -131,7 +131,7 @@
 (defn root [{:keys [fx/context]}]
   {:fx/type :stage
    :showing true
-   :title "lper"
+   :title "DERL"
    :width 400
    :height 600
    :scene {:fx/type :scene

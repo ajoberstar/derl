@@ -1,10 +1,10 @@
-(ns org.ajoberstar.lper.ui.effect
+(ns org.ajoberstar.derl.ui.effect
   (:refer-clojure :exclude [eval])
   (:require [clojure.core.async :as async]
             [clojure.edn :as edn]
             [cljfx.api :as fx]
-            [org.ajoberstar.lper.core :as core]
-            [org.ajoberstar.lper.ui.event :as event]))
+            [org.ajoberstar.derl.core :as core]
+            [org.ajoberstar.derl.ui.event :as event]))
 
 (defn connect [{:keys [repl-host repl-port]} dispatch!]
   (try
@@ -46,4 +46,4 @@
                   :severity :error
                   :message (str "Cannot read form")})
       (dispatch! {::event/type ::event/result
-                  :result {:tag :lper/err :val (pr-str e) :exception true}}))))
+                  :result {:tag :derl/err :val (pr-str e) :exception true}}))))

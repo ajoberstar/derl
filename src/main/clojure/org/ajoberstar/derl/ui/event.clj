@@ -1,4 +1,4 @@
-(ns org.ajoberstar.lper.ui.event
+(ns org.ajoberstar.derl.ui.event
   (:require [cljfx.api :as fx])
   (:import [javafx.scene.control ScrollToEvent]))
 
