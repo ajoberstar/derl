@@ -1,6 +1,6 @@
 # DERL
 
-Data Eval Return Loop. A REPL-based Clojure IDE.
+Data Eval Return Loop (pronounced like Daryll). A REPL-based Clojure IDE.
 
 ## Why does it exist?
 
