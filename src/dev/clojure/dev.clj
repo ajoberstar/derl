@@ -1,18 +1,19 @@
 (ns dev
   (:require [clojure.tools.namespace.repl :as repl]
-            [org.ajoberstar.derl.ui :as ui]))
+            [org.ajoberstar.derl.ui :as ui]
+            [org.ajoberstar.derl.ui.editor.view :as editor]))
 
 (def app nil)
 
 (defn start []
   (alter-var-root #'app (fn [_]
-                          (ui/start)))
+                          (editor/start)))
   :ok)
 
 (defn stop []
   (alter-var-root #'app (fn [app]
                           (when app
-                            (ui/stop app)
+                            (editor/stop app)
                             nil)))
   :ok)
 
