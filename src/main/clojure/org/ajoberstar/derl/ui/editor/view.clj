@@ -1,12 +1,41 @@
 (ns org.ajoberstar.derl.ui.editor.view
   (:require [cljfx.api :as fx]
-            [clojure.core.cache :as cache]))
+            [clojure.core.cache :as cache]
+            [clojure.string :as string])
+  (:import [javafx.scene.input KeyCombination KeyEvent]))
 
 (def *state (atom (fx/create-context 
-                    {:text "(defn foo (vector x y)
-                              (+ x y 2))"
-                     :form nil}
+                    {:frames [{:type :list
+                               :selected? true
+                               :disabled? false
+                               :messages []
+                               :children [{:type :literal
+                                           :value 'vector
+                                           :selected? false
+                                           :disbled? false
+                                           :messages []}
+                                          {:type :literal
+                                           :value 'x
+                                           :selected? false
+                                           :disbled? false
+                                           :messages []}
+                                          {:type :literal
+                                           :value 2
+                                           :selected? false
+                                           :disbled? false
+                                           :messages []}]}]}
                     cache/lru-cache-factory)))
+
+(defmulti frame->form :type)
+
+(defmethod frame->form :list [frame]
+  (apply list (map frame->form (:children frame))))
+
+(defmethod frame->form :literal [frame]
+  (:value frame))
+
+(defmethod frame->form :default [frame]
+  (throw (ex-info "Unknown frame type. Canot build form." {:frame frame})))
 
 (def rainbow-fg-colors ["red" "orange" "yellow" "green" "blue" "indigo" "violet"])
 
@@ -14,47 +43,50 @@
   (let [index (mod level (count colors))]
     (get colors index)))
 
-(declare form-frame)
+(declare frame-view)
 
-(defn value-frame [{:keys [fx/context form nest-level]}]
+(defn value-frame-view [{:keys [fx/context frame nest-level]}]
   {:fx/type :label
-   :style {:-fx-font-size 24}
-   :text (pr-str form)})
+   :style {:-fx-font-size 24
+           :-fx-border-color (if (:selected? frame) "purple" "transparent")}
+   :text (pr-str (:value frame))})
 
-(defn list-frame [{:keys [fx/context form nest-level]}]
+(defn list-frame-view [{:keys [fx/context frame nest-level]}]
   {:fx/type :h-box
-   :style {:-fx-font-size 24}
-  ;  :style {:-fx-border-color "black"}
+   :style {:-fx-font-size 24
+           :-fx-border-color (if (:selected? frame) "purple" "transparent")}
    :children [{:fx/type :label
                :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
                :text "("}
               {:fx/type :h-box
-              ;  :style {:-fx-border-color "purple"}
                :spacing 5
                :children (map (fn [child] 
-                                {:fx/type form-frame 
-                                 :form child 
+                                {:fx/type frame-view
+                                 :frame child 
                                  :nest-level (inc nest-level)}) 
-                              form)}
+                              (:children frame))}
               {:fx/type :label
                :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
                :text ")"}]})
 
-(defn form-frame [{:keys [fx/context form nest-level]}]
+(defn frame-view [{:keys [fx/context frame nest-level]}]
   (cond
-    (list? form)
-    {:fx/type list-frame
-     :form form
+    (= :list (:type frame))
+    {:fx/type list-frame-view
+     :frame frame
      :nest-level nest-level}
     :else
-    {:fx/type value-frame
-     :form form
+    {:fx/type value-frame-view
+     :frame frame
      :nest-level nest-level}))
 
-(defn text-buffer [{:keys [fx/context text]}]
+(defn text-buffer-view [{:keys [fx/context]}]
   {:fx/type :text-area
-   :text text
-   :on-text-changed {:event/type ::text-buffer-change}})
+   :editable false
+   :text (fx/sub-val context (comp #(string/join "\n\n" %)
+                                   #(map pr-str %)
+                                   #(map frame->form %)
+                                   :frames))})
 
 (defn editor [{:keys [fx/context]}]
   {:fx/type :stage
@@ -64,12 +96,17 @@
    :height 900
    :scene {:fx/type :scene
            :root {:fx/type :v-box
-                  :children [{:fx/type form-frame
+                  :padding 10
+                  :event-filter {:event/type ::editor-event-filter}
+                  :children [{:fx/type :flow-pane
+                              :orientation :vertical
                               :v-box/vgrow :always
-                              :form (fx/sub-val context :form)
-                              :nest-level 0}
-                             {:fx/type text-buffer
-                              :text (fx/sub-val context :text)}]}}})
+                              :children (map (fn [child]
+                                               {:fx/type frame-view
+                                                :frame child
+                                                :nest-level 0})
+                                             (fx/sub-val context :frames))}
+                             {:fx/type text-buffer-view}]}}})
 
 (defmulti event-handler :event/type)
 
@@ -81,6 +118,18 @@
     (catch Exception _
       [[:context (fx/swap-context context assoc :text event)]])))
 
+(defmethod event-handler ::editor-event-filter [{:keys [fx/event fx/context]}]
+  (when (and (instance? KeyEvent event) (= KeyEvent/KEY_RELEASED (.getEventType event)))
+    (cond
+      (.match (KeyCombination/valueOf "left") event)
+      (println "LEFT")
+      
+      (.match (KeyCombination/valueOf "right") event)
+      (println "RIGHT")
+      
+      :else
+      (println "Other Key Event:" event))))
+
 (defn start []
   (fx/create-app
    *state
@@ -89,7 +138,10 @@
    :co-effects {:fx/context (fx/make-deref-co-effect *state)}
    :effects {:context (fx/make-reset-effect *state)
              :dispatch fx/dispatch-effect}))
-             
 
 (defn stop [{:keys [renderer]}]
   (fx/unmount-renderer *state renderer))
+
+(comment
+  *e
+  ,)
