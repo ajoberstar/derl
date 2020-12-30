@@ -6,25 +6,29 @@
   (:import [javafx.scene.input KeyCombination KeyEvent]))
 
 (def *state (atom (fx/create-context 
-                    {:frame-root {:type :list
-                                  :selected? true
+                    {:frame-root {:type :buffer
+                                  :selected? false
                                   :disabled? false
                                   :messages []
-                                  :children [{:type :literal
-                                              :value 'vector
-                                              :selected? false
-                                              :disbled? false
-                                              :messages []}
-                                             {:type :literal
-                                              :value 'x
-                                              :selected? false
-                                              :disbled? false
-                                              :messages []}
-                                             {:type :literal
-                                              :value 2
-                                              :selected? false
-                                              :disbled? false
-                                              :messages []}]}}
+                                  :children [{:type :list
+                                              :selected? true
+                                              :disabled? false
+                                              :messages []
+                                              :children [{:type :literal
+                                                          :value 'vector
+                                                          :selected? false
+                                                          :disbled? false
+                                                          :messages []}
+                                                         {:type :literal
+                                                          :value 'x
+                                                          :selected? false
+                                                          :disbled? false
+                                                          :messages []}
+                                                         {:type :literal
+                                                          :value 2
+                                                          :selected? false
+                                                          :disbled? false
+                                                          :messages []}]}]}}
                     cache/lru-cache-factory)))
 
 (defn frame-zipper [frame]
@@ -78,6 +82,11 @@
         (zip/edit assoc :selected? true))
     loc))
 
+(defn remove-selected [loc]
+  (-> loc 
+      (zip/remove)
+      (zip/edit assoc :selected? true)))
+
 (defmulti frame->form :type)
 
 (defmethod frame->form :list [frame]
@@ -96,6 +105,12 @@
     (get colors index)))
 
 (declare frame-view)
+
+(defn placeholder-frame-view [{:keys [fx/context frame nest-level]}]
+  {:fx/type :label
+   :style {:-fx-font-size 24
+           :-fx-border-color (if (:selected? frame) "purple" "transparent")}
+   :text " "})
 
 (defn value-frame-view [{:keys [fx/context frame nest-level]}]
   {:fx/type :label
@@ -121,8 +136,21 @@
                :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
                :text ")"}]})
 
+(defn buffer-frame-view [{:keys [fx/context frame]}]
+  {:fx/type :flow-pane
+   :style {:-fx-border-color (if (:selected? frame) "purple" "transparent")}
+   :orientation :vertical
+   :children (map (fn [child]
+                    {:fx/type frame-view
+                     :frame child
+                     :nest-level 0})
+                  (:children frame))})
+
 (defn frame-view [{:keys [fx/context frame nest-level]}]
   (cond
+    (= :buffer (:type frame))
+    {:fx/type buffer-frame-view
+     :frame frame}
     (= :list (:type frame))
     {:fx/type list-frame-view
      :frame frame
@@ -150,14 +178,9 @@
            :root {:fx/type :v-box
                   :padding 10
                   :event-filter {:event/type ::editor-event-filter}
-                  :children [{:fx/type :flow-pane
-                              :orientation :vertical
+                  :children [{:fx/type frame-view
                               :v-box/vgrow :always
-                              :children (map (fn [child]
-                                               {:fx/type frame-view
-                                                :frame child
-                                                :nest-level 0})
-                                             [(fx/sub-val context :frame-root)])}
+                              :frame (fx/sub-val context :frame-root)}
                              {:fx/type text-buffer-view}]}}})
 
 (defmulti event-handler :event/type)
@@ -188,6 +211,9 @@
       (.match (KeyCombination/valueOf "down") event)
       [[:select-move {:frame-root (fx/sub-val context :frame-root)
                       :direction :down}]]
+      
+      (.match (KeyCombination/valueOf "backspace") event)
+      [[:remove-selected {:frame-root (fx/sub-val context :frame-root)}]]
 
       :else
       (println "Other Key Event:" event))))
@@ -216,6 +242,14 @@
     (dispatch! {:event/type ::on-selection-change
                 :frame-root new-root})))
 
+(defn do-remove-selected [{:keys [frame-root]} dispatch!]
+  (dispatch! {:event/type ::on-selection-change
+              :frame-root (-> frame-root
+                              frame-zipper
+                              zip-to-selected
+                              remove-selected
+                              zip/root)}))
+
 (defn start []
   (fx/create-app
    *state
@@ -224,7 +258,8 @@
    :co-effects {:fx/context (fx/make-deref-co-effect *state)}
    :effects {:context (fx/make-reset-effect *state)
              :dispatch fx/dispatch-effect
-             :select-move select-move}))
+             :select-move select-move
+             :remove-selected do-remove-selected}))
 
 (defn stop [{:keys [renderer]}]
   (fx/unmount-renderer *state renderer))
