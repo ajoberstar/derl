@@ -1,30 +1,82 @@
 (ns org.ajoberstar.derl.ui.editor.view
   (:require [cljfx.api :as fx]
             [clojure.core.cache :as cache]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [clojure.zip :as zip])
   (:import [javafx.scene.input KeyCombination KeyEvent]))
 
 (def *state (atom (fx/create-context 
-                    {:frames [{:type :list
-                               :selected? true
-                               :disabled? false
-                               :messages []
-                               :children [{:type :literal
-                                           :value 'vector
-                                           :selected? false
-                                           :disbled? false
-                                           :messages []}
-                                          {:type :literal
-                                           :value 'x
-                                           :selected? false
-                                           :disbled? false
-                                           :messages []}
-                                          {:type :literal
-                                           :value 2
-                                           :selected? false
-                                           :disbled? false
-                                           :messages []}]}]}
+                    {:frame-root {:type :list
+                                  :selected? true
+                                  :disabled? false
+                                  :messages []
+                                  :children [{:type :literal
+                                              :value 'vector
+                                              :selected? false
+                                              :disbled? false
+                                              :messages []}
+                                             {:type :literal
+                                              :value 'x
+                                              :selected? false
+                                              :disbled? false
+                                              :messages []}
+                                             {:type :literal
+                                              :value 2
+                                              :selected? false
+                                              :disbled? false
+                                              :messages []}]}}
                     cache/lru-cache-factory)))
+
+(defn frame-zipper [frame]
+  (zip/zipper (fn [fr] (not= :value fr))
+              (comp seq :children)
+              (fn [frame children]
+                (assoc frame :children (into [] children)))
+              frame))
+
+(defn zip-to-selected [zipper]
+  (loop [loc zipper]
+    (cond
+      (zip/end? loc)
+      (zip/root loc)
+
+      (:selected? (zip/node loc))
+      loc
+
+      :else
+      (recur (zip/next loc)))))
+
+(defn select-left [loc]
+  (if (= loc (zip/leftmost loc))
+    loc
+    (-> loc
+        (zip/edit assoc :selected? false)
+        (zip/left)
+        (zip/edit assoc :selected? true))))
+
+(defn select-right [loc]
+  (if (= loc (zip/rightmost loc))
+    loc
+    (-> loc
+        (zip/edit assoc :selected? false)
+        (zip/right)
+        (zip/edit assoc :selected? true))))
+
+(defn select-up [loc]
+  (if (zip/up loc)
+    (-> loc
+        (zip/edit assoc :selected? false)
+        (zip/up)
+        (zip/edit assoc :selected? true))
+    loc))
+
+(defn select-down [loc]
+  (if (zip/down loc)
+    (-> loc
+        (zip/edit assoc :selected? false)
+        (zip/down)
+        (zip/edit assoc :selected? true))
+    loc))
 
 (defmulti frame->form :type)
 
@@ -105,7 +157,7 @@
                                                {:fx/type frame-view
                                                 :frame child
                                                 :nest-level 0})
-                                             (fx/sub-val context :frames))}
+                                             [(fx/sub-val context :frame-root)])}
                              {:fx/type text-buffer-view}]}}})
 
 (defmulti event-handler :event/type)
@@ -122,13 +174,47 @@
   (when (and (instance? KeyEvent event) (= KeyEvent/KEY_RELEASED (.getEventType event)))
     (cond
       (.match (KeyCombination/valueOf "left") event)
-      (println "LEFT")
-      
+      [[:select-move {:frame-root (fx/sub-val context :frame-root)
+                      :direction :left}]]
+
       (.match (KeyCombination/valueOf "right") event)
-      (println "RIGHT")
-      
+      [[:select-move {:frame-root (fx/sub-val context :frame-root)
+                      :direction :right}]]
+
+      (.match (KeyCombination/valueOf "up") event)
+      [[:select-move {:frame-root (fx/sub-val context :frame-root)
+                      :direction :up}]]
+
+      (.match (KeyCombination/valueOf "down") event)
+      [[:select-move {:frame-root (fx/sub-val context :frame-root)
+                      :direction :down}]]
+
       :else
       (println "Other Key Event:" event))))
+
+(defmethod event-handler ::on-selection-change [{:keys [fx/context frame-root]}]
+  [[:context (fx/swap-context context assoc :frame-root frame-root)]])
+
+(defn select-move [{:keys [frame-root direction]} dispatch!]
+  (let [loc (zip-to-selected (frame-zipper frame-root))
+        edited (cond
+                 (= :left direction)
+                 (select-left loc)
+
+                 (= :right direction)
+                 (select-right loc)
+
+                 (= :up direction)
+                 (select-up loc)
+
+                 (= :down direction)
+                 (select-down loc)
+
+                 :else
+                 (throw (ex-info "Invalid direction" {:direction direction})))
+        new-root (-> edited zip/root)]
+    (dispatch! {:event/type ::on-selection-change
+                :frame-root new-root})))
 
 (defn start []
   (fx/create-app
@@ -137,11 +223,20 @@
    :desc-fn (fn [_] {:fx/type editor})
    :co-effects {:fx/context (fx/make-deref-co-effect *state)}
    :effects {:context (fx/make-reset-effect *state)
-             :dispatch fx/dispatch-effect}))
+             :dispatch fx/dispatch-effect
+             :select-move select-move}))
 
 (defn stop [{:keys [renderer]}]
   (fx/unmount-renderer *state renderer))
 
 (comment
   *e
+
+  (-> @*state :cljfx.context/m)
+
+  (def z (frame-zipper (-> @*state :cljfx.context/m :frame-root)))
+
+  (zip-to-selected z)
+
+  (-> z select-down zip/root)
   ,)
