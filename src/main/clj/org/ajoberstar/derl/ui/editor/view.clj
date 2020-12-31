@@ -15,27 +15,55 @@
                                               :disabled? false
                                               :messages []
                                               :children [{:type :literal
-                                                          :value 'vector
+                                                          :value 'defn
                                                           :selected? false
-                                                          :disbled? false
+                                                          :disabled? false
                                                           :messages []}
-                                                         {:type :literal
-                                                          :value 'x
+                                                         {:type :list
                                                           :selected? false
-                                                          :disbled? false
-                                                          :messages []}
-                                                         {:type :literal
-                                                          :value 2
+                                                          :disabled? false
+                                                          :messages []
+                                                          :children [{:type :literal
+                                                                      :value 'x
+                                                                      :selected? false
+                                                                      :disbled? false
+                                                                      :messages []}
+                                                                     {:type :literal
+                                                                      :value 'y
+                                                                      :selected? false
+                                                                      :disabled? false
+                                                                      :messages []}]}
+                                                         {:type :list
                                                           :selected? false
-                                                          :disbled? false
-                                                          :messages []}]}]}}
+                                                          :disabled? false
+                                                          :messages []
+                                                          :children [{:type :literal
+                                                                      :value '+
+                                                                      :selected? false
+                                                                      :disabled? false
+                                                                      :messages []}
+                                                                     {:type :literal
+                                                                      :value 'x
+                                                                      :selected? false
+                                                                      :disabled? false
+                                                                      :messages []}
+                                                                     {:type :literal
+                                                                      :value 'y
+                                                                      :selected? false
+                                                                      :disabled? false
+                                                                      :messages []}
+                                                                     {:type :literal
+                                                                      :value 2
+                                                                      :selected? false
+                                                                      :disabled? false
+                                                                      :messages []}]}]}]}}
                     cache/lru-cache-factory)))
 
 (defn frame-zipper [frame]
   (zip/zipper (fn [fr] (not= :value fr))
               (comp seq :children)
-              (fn [frame children]
-                (assoc frame :children (into [] children)))
+              (fn [fr children]
+                (assoc fr :children (into [] children)))
               frame))
 
 (defn zip-to-selected [zipper]
@@ -133,44 +161,48 @@
       (recur edited))))
 
 (defn move-selected-left [loc]
-  (if (= loc (zip/leftmost loc))
-    loc
-    (let [node (zip/node loc)]
-      (-> loc
-          (zip/remove)
-          (zip/insert-left node)
-          (zip/left)))))
+  (if (zip/left loc)
+    (let [node (zip/node loc)
+          left-node (zip/node (zip/left loc))
+          removed (zip/remove loc)]
+      (loop [loc removed]
+        (if (= left-node (zip/node loc))
+          (zip/insert-left loc node)
+          (recur (zip/prev loc)))))
+    loc))
 
 (defn move-selected-right [loc]
-  (if (= loc (zip/rightmost loc))
-    loc
-    (let [node (zip/node loc)]
-      (-> loc
-          (zip/remove)
-          (zip/next)
-          (zip/insert-right node)
-          (zip/right)))))
+  (if (zip/right loc)
+    (let [node (zip/node loc)
+          right-node (zip/node (zip/right loc))
+          removed (zip/remove loc)]
+      (loop [loc removed]
+        (if (= right-node (zip/node loc))
+          (zip/insert-right loc node)
+          (recur (zip/next loc)))))
+    loc))
 
 (defn move-selected-leftmost [loc]
-  (if (= loc (zip/leftmost loc))
-    loc
-    (let [node (zip/node loc)]
-      (-> loc
-          (zip/remove)
-          (zip/leftmost)
-          (zip/insert-left node)
-          (zip/left)))))
+  (if (zip/left loc)
+    (let [node (zip/node loc)
+          leftmost-node (zip/node (zip/leftmost loc))
+          removed (zip/remove loc)]
+      (loop [loc removed]
+        (if (= leftmost-node (zip/node loc))
+          (zip/insert-left loc node)
+          (recur (zip/prev loc)))))
+    loc))
 
 (defn move-selected-rightmost [loc]
-  (if (= loc (zip/rightmost loc))
-    loc
-    (let [node (zip/node loc)]
-      (-> loc
-          (zip/remove)
-          (zip/next)
-          (zip/rightmost)
-          (zip/insert-right node)
-          (zip/right)))))
+  (if (zip/right loc)
+    (let [node (zip/node loc)
+          rightmost-node (zip/node (zip/rightmost loc))
+          removed (zip/remove loc)]
+      (loop [loc removed]
+        (if (= rightmost-node (zip/node loc))
+          (zip/insert-right loc node)
+          (recur (zip/next loc)))))
+    loc))
 
 (defn move-selected-up [loc]
   (if (zip/up loc)
@@ -180,8 +212,7 @@
       (-> loc
           (zip/remove)
           move
-          (zip/insert-left node)
-          (zip/left)))
+          (zip/insert-left node)))
     loc))
 
 (defn move-selected-down [loc]
@@ -191,9 +222,39 @@
           (zip/remove)
           (zip/next)
           (zip/down)
-          (zip/insert-left node)
-          (zip/left)))
+          (zip/insert-left node)))
     loc))
+
+(defn move-selected-previous [loc]
+  (let [node (zip/node loc)
+        removed (zip/remove loc)]
+    (if (zip/branch? removed)
+      (-> removed
+          (zip/append-child node))
+      (-> removed
+          (zip/insert-right node)))))
+
+(defn move-selected-next [loc]
+  (let [node (zip/node loc)
+        removed (zip/remove loc)]
+    (cond
+      (zip/end? (zip/next loc))
+      (-> removed
+          (zip/up)
+          (zip/insert-right node)
+          (zip/right))
+      
+      (zip/branch? (zip/next loc))
+      (-> removed
+          (zip/next)
+          (zip/insert-child loc)
+          (zip/down))
+      
+      :else
+      (-> removed
+          (zip/next)
+          (zip/insert-right loc)
+          (zip/right)))))
 
 (defn clone-selected-left [loc]
   (let [node (zip/node loc)]
@@ -393,6 +454,14 @@
       (.match (KeyCombination/valueOf "4") event)
       [[:select-level {:frame-root (fx/sub-val context :frame-root)
                        :level 3}]]
+
+      (.match (KeyCombination/valueOf "tab") event)
+      [[:move-selected {:frame-root (fx/sub-val context :frame-root)
+                        :direction :previous}]]
+
+      (.match (KeyCombination/valueOf "shift:tab") event)
+      [[:move-selected {:frame-root (fx/sub-val context :frame-root)
+                        :direction :next}]]
       
       (or (.match (KeyCombination/valueOf "backspace") event)
           (.match (KeyCombination/valueOf "delete") event)
@@ -466,6 +535,12 @@
                  (= :down direction)
                  (move-selected-down loc)
 
+                 (= :previous direction)
+                 (move-selected-previous loc)
+
+                 (= :next direction)
+                 (move-selected-next loc)
+
                  :else
                  (throw (ex-info "Invalid direction" {:direction direction})))
         new-root (-> edited zip/root)]
@@ -531,5 +606,5 @@
   (-> z select-down zip/root)
 
   (-> z zip-to-selected zip/remove zip/up (zip/insert-left {:my-node "yeay"}) (zip/left))
-  (-> @*state :cljfx.context/m :frame-root frame-zipper zip-to-selected move-selected-up)
+  (-> @*state :cljfx.context/m :frame-root frame-zipper zip-to-selected move-selected-previous zip/root)
   ,)
