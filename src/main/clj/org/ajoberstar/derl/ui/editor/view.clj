@@ -6,64 +6,39 @@
   (:import [javafx.scene.input KeyCombination KeyEvent]))
 
 (def *state (atom (fx/create-context 
-                    {:frame-root {:type :buffer
-                                  :selected? false
-                                  :disabled? false
-                                  :messages []
-                                  :children [{:type :list
-                                              :selected? true
-                                              :disabled? false
-                                              :messages []
-                                              :children [{:type :literal
-                                                          :value 'defn
-                                                          :selected? false
-                                                          :disabled? false
-                                                          :messages []}
-                                                         {:type :list
-                                                          :selected? false
-                                                          :disabled? false
-                                                          :messages []
-                                                          :children [{:type :literal
-                                                                      :value 'x
-                                                                      :selected? false
-                                                                      :disbled? false
-                                                                      :messages []}
-                                                                     {:type :literal
-                                                                      :value 'y
-                                                                      :selected? false
-                                                                      :disabled? false
-                                                                      :messages []}]}
-                                                         {:type :list
-                                                          :selected? false
-                                                          :disabled? false
-                                                          :messages []
-                                                          :children [{:type :literal
-                                                                      :value '+
-                                                                      :selected? false
-                                                                      :disabled? false
-                                                                      :messages []}
-                                                                     {:type :literal
-                                                                      :value 'x
-                                                                      :selected? false
-                                                                      :disabled? false
-                                                                      :messages []}
-                                                                     {:type :literal
-                                                                      :value 'y
-                                                                      :selected? false
-                                                                      :disabled? false
-                                                                      :messages []}
-                                                                     {:type :literal
-                                                                      :value 2
-                                                                      :selected? false
-                                                                      :disabled? false
-                                                                      :messages []}]}]}]}}
+                    {:frame-root (with-meta
+                                  '[(defn foo [x y]
+                                      (+ x y 2))
+                                    
+                                    (defn bar [x & rest]
+                                      (let [z (* x 2)]
+                                        (into [z] (comp (map inc)
+                                                        (filter even?)) 
+                                              rest)))]
+                                   {:type :buffer
+                                    :selected? true})}
                     cache/lru-cache-factory)))
 
 (defn frame-zipper [frame]
-  (zip/zipper (fn [fr] (not= :value fr))
-              (comp seq :children)
+  (zip/zipper coll?
+              seq
               (fn [fr children]
-                (assoc fr :children (into [] children)))
+                (cond
+                  (list? fr) 
+                  (with-meta (into '() (reverse children)) (meta fr))
+                  
+                  (vector? fr)
+                  (with-meta (into [] children) (meta fr))
+
+                  (set? fr)
+                  (with-meta (into #{} children) (meta fr))
+                  
+                  (map? fr)
+                  (with-meta (into {} children) (meta fr))
+                  
+                  :else
+                  (throw (ex-info "Unsupported collection type. Cannot make new node." {:frame fr
+                                                                                        :children children}))))
               frame))
 
 (defn zip-to-selected [zipper]
@@ -72,7 +47,7 @@
       (zip/end? loc)
       (zip/root loc)
 
-      (:selected? (zip/node loc))
+      (:selected? (meta (zip/node loc)))
       loc
 
       :else
@@ -82,48 +57,48 @@
   (if (= loc (zip/leftmost loc))
     loc
     (-> loc
-        (zip/edit assoc :selected? false)
+        (zip/edit vary-meta assoc :selected? false)
         (zip/left)
-        (zip/edit assoc :selected? true))))
+        (zip/edit vary-meta assoc :selected? true))))
 
 (defn select-right [loc]
   (if (= loc (zip/rightmost loc))
     loc
     (-> loc
-        (zip/edit assoc :selected? false)
+        (zip/edit vary-meta assoc :selected? false)
         (zip/right)
-        (zip/edit assoc :selected? true))))
+        (zip/edit vary-meta assoc :selected? true))))
 
 (defn select-leftmost [loc]
   (if (= loc (zip/leftmost loc))
     loc
     (-> loc
-        (zip/edit assoc :selected? false)
+        (zip/edit vary-meta assoc :selected? false)
         (zip/leftmost)
-        (zip/edit assoc :selected? true))))
+        (zip/edit vary-meta assoc :selected? true))))
 
 (defn select-rightmost [loc]
   (if (= loc (zip/rightmost loc))
     loc
     (-> loc
-        (zip/edit assoc :selected? false)
+        (zip/edit vary-meta assoc :selected? false)
         (zip/rightmost)
-        (zip/edit assoc :selected? true))))
+        (zip/edit vary-meta assoc :selected? true))))
 
 (defn select-up [loc]
   (if (zip/up loc)
     (-> loc
-        (zip/edit assoc :selected? false)
+        (zip/edit vary-meta assoc :selected? false)
         (zip/up)
-        (zip/edit assoc :selected? true))
+        (zip/edit vary-meta assoc :selected? true))
     loc))
 
 (defn select-down [loc]
   (if (zip/down loc)
     (-> loc
-        (zip/edit assoc :selected? false)
+        (zip/edit vary-meta assoc :selected? false)
         (zip/down)
-        (zip/edit assoc :selected? true))
+        (zip/edit vary-meta assoc :selected? true))
     loc))
 
 (defn select-nth-level [loc n]
@@ -131,14 +106,14 @@
         ups (- depth n)]
     (if (< ups 0)
       loc
-      (let [unselected (zip/edit loc assoc :selected? false)
+      (let [unselected (zip/edit loc vary-meta assoc :selected? false)
             unwound (nth (iterate zip/up unselected) ups)]
-        (zip/edit unwound assoc :selected? true)))))
+        (zip/edit unwound vary-meta assoc :selected? true)))))
 
 (defn remove-selected [loc]
   (-> loc 
       (zip/remove)
-      (zip/edit assoc :selected? true)))
+      (zip/edit vary-meta assoc :selected? true)))
 
 (defn remove-selected-to-left [loc]
   (let [remaining (zip/rights loc)
@@ -146,8 +121,8 @@
         new-parent (zip/make-node old-parent (zip/node old-parent) remaining)
         replaced (zip/replace old-parent new-parent)]
     (if (seq remaining)
-      (-> replaced zip/down (zip/edit assoc :selected? true))
-      (zip/edit replaced assoc :selected? true))))
+      (-> replaced zip/down (zip/edit vary-meta assoc :selected? true))
+      (zip/edit replaced vary-meta assoc :selected? true))))
 
 (defn remove-selected-to-right [loc]
   (let [remaining (zip/lefts loc)
@@ -155,8 +130,8 @@
         new-parent (zip/make-node old-parent (zip/node old-parent) remaining)
         replaced (zip/replace old-parent new-parent)]
     (if (seq remaining)
-      (-> replaced zip/down zip/rightmost (zip/edit assoc :selected? true))
-      (zip/edit replaced assoc :selected? true))))
+      (-> replaced zip/down zip/rightmost (zip/edit vary-meta assoc :selected? true))
+      (zip/edit replaced vary-meta assoc :selected? true))))
 
 (defn move-selected-left [loc]
   (if (zip/left loc)
@@ -268,14 +243,8 @@
 
 (defmulti frame->form :type)
 
-(defmethod frame->form :list [frame]
-  (apply list (map frame->form (:children frame))))
-
-(defmethod frame->form :literal [frame]
-  (:value frame))
-
 (defmethod frame->form :default [frame]
-  (throw (ex-info "Unknown frame type. Canot build form." {:frame frame})))
+  frame)
 
 (def rainbow-fg-colors ["red" "orange" "yellow" "green" "blue" "indigo" "violet"])
 
@@ -285,22 +254,22 @@
 
 (declare frame-view)
 
-(defn insert-frame-view [{:keys [fx/context frame nest-level]}]
+(defn insert-frame-view [{:keys [fx/context frame selected? nest-level]}]
   {:fx/type :label
    :style {:-fx-font-size 24
-           :-fx-border-color (if (:selected? frame) "purple" "transparent")}
+           :-fx-border-color (if selected? "purple" "transparent")}
    :text " "})
 
-(defn value-frame-view [{:keys [fx/context frame nest-level]}]
+(defn value-frame-view [{:keys [fx/context frame selected? nest-level]}]
   {:fx/type :label
    :style {:-fx-font-size 24
-           :-fx-border-color (if (:selected? frame) "purple" "transparent")}
-   :text (pr-str (:value frame))})
+           :-fx-border-color (if selected? "purple" "transparent")}
+   :text (pr-str frame)})
 
-(defn list-frame-view [{:keys [fx/context frame nest-level]}]
+(defn list-frame-view [{:keys [fx/context frame selected? nest-level]}]
   {:fx/type :h-box
    :style {:-fx-font-size 24
-           :-fx-border-color (if (:selected? frame) "purple" "transparent")}
+           :-fx-border-color (if selected? "purple" "transparent")}
    :children [{:fx/type :label
                :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
                :text "("}
@@ -309,40 +278,46 @@
                :children (map (fn [child] 
                                 {:fx/type frame-view
                                  :frame child 
+                                 :selected? (:selected? (meta frame))
                                  :nest-level (inc nest-level)}) 
-                              (:children frame))}
+                              frame)}
               {:fx/type :label
                :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
                :text ")"}]})
 
-(defn buffer-frame-view [{:keys [fx/context frame]}]
+(defn buffer-frame-view [{:keys [fx/context selected? frame]}]
   {:fx/type :flow-pane
-   :style {:-fx-border-color (if (:selected? frame) "purple" "transparent")}
+   :style {:-fx-border-color (if selected? "purple" "transparent")}
    :orientation :vertical
    :children (map (fn [child]
                     {:fx/type frame-view
                      :frame child
+                     :selected? (:selected? (meta frame))
                      :nest-level 0})
-                  (:children frame))})
+                  frame)})
 
-(defn frame-view [{:keys [fx/context frame nest-level]}]
+(defn frame-view [{:keys [fx/context frame selected? nest-level]}]
   (cond
-    (= :insert (:type frame))
+    (= :insert (:type (meta frame)))
     {:fx/type insert-frame-view
-     :frame frame}
+     :frame frame
+     :selected? (:selected? (meta frame))}
 
-    (= :buffer (:type frame))
+    (= :buffer (:type (meta frame)))
     {:fx/type buffer-frame-view
-     :frame frame}
+     :frame frame
+     :selected? (:selected? (meta frame))}
 
-    (= :list (:type frame))
+    (list? frame)
     {:fx/type list-frame-view
      :frame frame
+     :selected? (:selected? (meta frame))
      :nest-level nest-level}
 
     :else
     {:fx/type value-frame-view
      :frame frame
+     :selected? (:selected? (meta frame))
      :nest-level nest-level}))
 
 (defn text-buffer-view [{:keys [fx/context]}]
@@ -595,6 +570,8 @@
 (comment
   *e
 
+
+
   (-> @*state :cljfx.context/m)
 
   (def z (frame-zipper (-> @*state :cljfx.context/m :frame-root)))
@@ -605,4 +582,18 @@
 
   (-> z zip-to-selected zip/remove zip/up (zip/insert-left {:my-node "yeay"}) (zip/left))
   (-> @*state :cljfx.context/m :frame-root frame-zipper zip-to-selected move-selected-previous zip/root)
+  (-> @*state :cljfx.context/m :frame-root frame-zipper zip-to-selected)
+  (-> @*state :cljfx.context/m :frame-root meta)
+  (-> @*state :cljfx.context/m :frame-root first (nth 3) meta)
+  (-> @*state :cljfx.context/m :frame-root second first meta)
+
+
+  (letfn [(modify [frame f] (-> frame frame-zipper zip-to-selected f zip/root))]
+    (binding [*print-meta* true]
+      (-> @*state :cljfx.context/m :frame-root
+          (modify select-down)
+          (modify select-down)
+          pr-str)))
+          
+
   ,)

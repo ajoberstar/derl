@@ -5,7 +5,8 @@
   org.clojure/core.cache {:mvn/version "1.0.207"}
   com.stuartsierra/component {:mvn/version "1.0.0"}
   cljfx/cljfx {:mvn/version "1.7.11"}
-  parinferish/parinferish {:mvn/version "0.8.0"}}
+  parinferish/parinferish {:mvn/version "0.8.0"}
+  rewrite-clj/rewrite-clj {:mvn/version "0.6.1"}}
   
  :aliases
  {:test
