@@ -141,24 +141,22 @@
       (zip/edit assoc :selected? true)))
 
 (defn remove-selected-to-left [loc]
-  (let [boundary (zip/leftmost loc)
-        edited (-> loc
-                   (zip/remove)
-                   (zip/edit assoc :selected? true))]
-    (if (= loc boundary)
-      edited
-      (recur edited))))
+  (let [remaining (zip/rights loc)
+        old-parent (zip/up loc)
+        new-parent (zip/make-node old-parent (zip/node old-parent) remaining)
+        replaced (zip/replace old-parent new-parent)]
+    (if (seq remaining)
+      (-> replaced zip/down (zip/edit assoc :selected? true))
+      (zip/edit replaced assoc :selected? true))))
 
 (defn remove-selected-to-right [loc]
-  (let [boundary (zip/rightmost loc)
-        move (if (= loc boundary) identity zip/right)
-        edited (-> loc
-                   (zip/remove)
-                   move
-                   (zip/edit assoc :selected? true))]
-    (if (= loc boundary)
-      edited
-      (recur edited))))
+  (let [remaining (zip/lefts loc)
+        old-parent (zip/up loc)
+        new-parent (zip/make-node old-parent (zip/node old-parent) remaining)
+        replaced (zip/replace old-parent new-parent)]
+    (if (seq remaining)
+      (-> replaced zip/down zip/rightmost (zip/edit assoc :selected? true))
+      (zip/edit replaced assoc :selected? true))))
 
 (defn move-selected-left [loc]
   (if (zip/left loc)
