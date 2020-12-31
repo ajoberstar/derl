@@ -15,8 +15,8 @@
 (spec/def ::value (not coll?))
 (spec/def ::symbolic-name string?)
 
-(spec/def ::symbolic-elements (spec/alt (spec/cat ::symbolic-namespace ::symbolic-name)
-                                        (spec/cat ::symbolic-name)))
+(spec/def ::symbolic-elements (spec/alt :stuff (spec/cat :namespace ::symbolic-name :name ::symbolic-name)
+                                        :other-stuff (spec/cat :name ::symbolic-name)))
 (spec/def ::collection-elements (spec/coll-of ::form-frame :kind :vector))
 
 (derive ::scalar-frame ::form-frame)
