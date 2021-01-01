@@ -1,66 +1,202 @@
 (ns org.ajoberstar.derl.alpha1.lang.clojure
   (:require [clojure.spec.alpha :as spec]
             [org.ajoberstar.derl.alpha1.frame :as frame]
+            [rewrite-clj.node :as re-node]
+            [rewrite-clj.node.protocols :as re-protocols]
+            [rewrite-clj.parser :as re-parser]
+            [rewrite-clj.zip :as re-zip]
             #?(:cljs [cljs.reader])))
 
-(defmethod frame/convert [::form-content ::frame/text-content] [frame _]
-  (pr-str frame))
+(extend-protocol frame/Frame
+  re-protocols/Node
+  (data [frame] (re-node/sexpr frame))
+  (text [frame] (re-node/string frame)))
 
-(defmethod frame/convert [::frame/text-content ::form-content] [frame _]
-  #?(:clj (read-string frame)
-     :cljs (cljs.reader/read-string frame)))
+(defn text->frames [text]
+  (re-parser/string-all text))
 
-(spec/def ::form-frame any?)
+(defn data->frames [data]
+  data)
 
-(spec/def ::value (not coll?))
-(spec/def ::symbolic-name string?)
+(defn find-all [loc f p?]
+  (keep identity (iterate #(re-zip/find-next % f p?) (rewrite-zip/find loc f p?))))
 
-(spec/def ::symbolic-elements (spec/alt :stuff (spec/cat :namespace ::symbolic-name :name ::symbolic-name)
-                                        :other-stuff (spec/cat :name ::symbolic-name)))
-(spec/def ::collection-elements (spec/coll-of ::form-frame :kind :vector))
+(defn act-on-selected [frame action]
+  (let [zipper (re-zip/zipper frame)]
+    (-> (re-zip/find zipper re-zip/next ::frame/selected)
+        action
+        (re-zip/root)
+        (re-zip/node))))
 
-(derive ::scalar-frame ::form-frame)
+(defn select [loc move-fn]
+  (if (move-fn loc)
+    (-> loc
+        (re-zip/edit assoc ::frame/selected false)
+        move-fn
+        (re-zip/edit assoc ::frame/selected true))
+    loc))
 
-(defmethod frame/frame-type ::scalar-frame [_]
-  (spec/merge ::frame/frame-common (spec/keys :req [::value])))
+(defn select-prev [loc]
+  (select loc re-zip/prev))
 
-(defmethod frame/convert [::scalar-frame ::form-content] [frame _]
-  (::value frame))
+(defn select-next [loc]
+  (select loc re-zip/next))
 
-(defmethod frame/convert [::form-content ::scalar-frame] [frame _]
-  {:frame/type ::scalar-frame
-   :disabled? false})
+(defn select-left [loc]
+  (select loc re-zip/left))
 
-(derive ::symbolic-frame ::form-frame)
-(derive ::keyword-frame ::symbolic-frame)
-(derive ::symbol-frame ::symbolic-frame)
+(defn select-right [loc]
+  (select loc re-zip/right))
 
-(defmethod frame/children ::symbolic-frame [frame]
-  (seq (::symbolic-elements frame)))
-  
-(defmethod frame/with-children ::symbolic-frame [frame children]
-  (assoc frame ::symbolic-elements (into [] children)))
+(defn select-up [loc]
+  (select loc re-zip/up))
 
-(defmethod frame/frame-type ::symbolic-frame [_]
-  (spec/merge ::frame/frame-common (spec/keys :req [::symbolic-elements])))
+(defn select-down [loc]
+  (select loc re-zip/down))
 
-(defmethod frame/convert [::keyword-frame ::form-content] [frame _]
-  (apply keyword (::symbolic-elements frame)))
+(defn select-leftmost [loc]
+  (select loc re-zip/leftmost))
 
-(defmethod frame/convert [::symbol-frame ::form-content] [frame _]
-  (apply symbol (::symbolic-elements frame)))
+(defn select-rightmost [loc]
+  (select loc re-zip/rightmost))
 
-(derive ::collection-frame ::form-frame)
-(derive ::list-frame ::collection-frame)
-(derive ::vector-frame ::collection-frame)
-(derive ::map-frame ::collection-frame)
-(derive ::set-frame ::collection-frame)
+;; FIXME this won't work
+(defn select-nth-level [loc n]
+  (let [depth (-> loc re-zip/path count)
+        ups (- depth n)]
+    (if (< ups 0)
+      loc
+      (let [unselected (re-zip/edit loc assoc ::frame/selected false)
+            unwound (nth (iterate re-zip/up unselected) ups)]
+        (re-zip/edit unwound assoc ::frame/selected true)))))
 
-(defmethod frame/children ::collection-frame [frame]
-  (seq (::collection-elements frame)))
+(defn remove-selected [loc]
+  (-> loc 
+      (re-zip/remove)
+      (re-zip/edit assoc ::frame/selected true)))
 
-(defmethod frame/with-children ::collection-frame [frame]
-  (assoc frame ::collection-elements (into [] frame)))
+(defn remove-selected-to-left [loc]
+  (let [remaining (re-zip/rights loc)
+        old-parent (re-zip/up loc)
+        new-parent (re-zip/make-node old-parent (re-zip/node old-parent) remaining)
+        replaced (re-zip/replace old-parent new-parent)]
+    (if (seq remaining)
+      (-> replaced re-zip/down (re-zip/edit assoc ::frame/selected true))
+      (re-zip/edit replaced assoc ::frame/selected true))))
 
-(defmethod frame/frame-type ::collection-frame [_]
-  (spec/merge ::frame/frame-common (spec/keys :req [::collection-elements])))
+(defn remove-selected-to-right [loc]
+  (let [remaining (re-zip/lefts loc)
+        old-parent (re-zip/up loc)
+        new-parent (re-zip/make-node old-parent (re-zip/node old-parent) remaining)
+        replaced (re-zip/replace old-parent new-parent)]
+    (if (seq remaining)
+      (-> replaced re-zip/down re-zip/rightmost (re-zip/edit assoc ::frame/selected true))
+      (re-zip/edit replaced assoc ::frame/selected true))))
+
+(defn move-selected-left [loc]
+  (if (re-zip/left loc)
+    (let [node (re-zip/node loc)
+          left-node (re-zip/node (re-zip/left loc))
+          removed (re-zip/remove loc)]
+      (loop [loc removed]
+        (if (= left-node (re-zip/node loc))
+          (re-zip/insert-left loc node)
+          (recur (re-zip/prev loc)))))
+    loc))
+
+(defn move-selected-right [loc]
+  (if (re-zip/right loc)
+    (let [node (re-zip/node loc)
+          right-node (re-zip/node (re-zip/right loc))
+          removed (re-zip/remove loc)]
+      (loop [loc removed]
+        (if (= right-node (re-zip/node loc))
+          (re-zip/insert-right loc node)
+          (recur (re-zip/next loc)))))
+    loc))
+
+(defn move-selected-leftmost [loc]
+  (if (re-zip/left loc)
+    (let [node (re-zip/node loc)
+          leftmost-node (re-zip/node (re-zip/leftmost loc))
+          removed (re-zip/remove loc)]
+      (loop [loc removed]
+        (if (= leftmost-node (re-zip/node loc))
+          (re-zip/insert-left loc node)
+          (recur (re-zip/prev loc)))))
+    loc))
+
+(defn move-selected-rightmost [loc]
+  (if (re-zip/right loc)
+    (let [node (re-zip/node loc)
+          rightmost-node (re-zip/node (re-zip/rightmost loc))
+          removed (re-zip/remove loc)]
+      (loop [loc removed]
+        (if (= rightmost-node (re-zip/node loc))
+          (re-zip/insert-right loc node)
+          (recur (re-zip/next loc)))))
+    loc))
+
+(defn move-selected-up [loc]
+  (if (re-zip/up loc)
+    (let [node (re-zip/node loc)
+          leftmost (nil? (re-zip/left loc))
+          move (if leftmost identity re-zip/up)]
+      (-> loc
+          (re-zip/remove)
+          move
+          (re-zip/insert-left node)))
+    loc))
+
+(defn move-selected-down [loc]
+  (if (-> loc re-zip/next re-zip/down)
+    (let [node (re-zip/node loc)]
+      (-> loc
+          (re-zip/remove)
+          (re-zip/next)
+          (re-zip/down)
+          (re-zip/insert-left node)))
+    loc))
+
+(defn move-selected-previous [loc]
+  (let [node (re-zip/node loc)
+        removed (re-zip/remove loc)]
+    (if (re-zip/branch? removed)
+      (-> removed
+          (re-zip/append-child node))
+      (-> removed
+          (re-zip/insert-right node)))))
+
+(defn move-selected-next [loc]
+  (let [node (re-zip/node loc)
+        removed (re-zip/remove loc)]
+    (cond
+      (re-zip/end? (re-zip/next loc))
+      (-> removed
+          (re-zip/up)
+          (re-zip/insert-right node)
+          (re-zip/right))
+      
+      (re-zip/branch? (re-zip/next loc))
+      (-> removed
+          (re-zip/next)
+          (re-zip/insert-child loc)
+          (re-zip/down))
+      
+      :else
+      (-> removed
+          (re-zip/next)
+          (re-zip/insert-right loc)
+          (re-zip/right)))))
+
+(defn clone-selected-left [loc]
+  (let [node (re-zip/node loc)]
+    (-> loc
+        (re-zip/insert-left node)
+        (select-left))))
+
+(defn clone-selected-right [loc]
+  (let [node (re-zip/node loc)]
+    (-> loc
+        (re-zip/insert-right node)
+        (select-right))))

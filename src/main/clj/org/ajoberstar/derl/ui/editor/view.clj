@@ -2,249 +2,25 @@
   (:require [cljfx.api :as fx]
             [clojure.core.cache :as cache]
             [clojure.string :as string]
-            [clojure.zip :as zip])
+            [clojure.zip :as zip]
+            [org.ajoberstar.derl.alpha1.frame :as frame]
+            [org.ajoberstar.derl.alpha1.lang.clojure :as lang-clj]
+            [refactor-clj.node :as re-node]
+            [refactor-clj.zip :as re-zip])
   (:import [javafx.scene.input KeyCombination KeyEvent]))
 
 (def *state (atom (fx/create-context 
-                    {:frame-root (with-meta
-                                  '[(defn foo [x y]
+                    {:text-input "(defn foo [x y]
                                       (+ x y 2))
                                     
                                     (defn bar [x & rest]
                                       (let [z (* x 2)]
                                         (into [z] (comp (map inc)
                                                         (filter even?)) 
-                                              rest)))]
-                                   {:type :buffer
-                                    :selected? true})}
+                                              rest)))"
+                     :text-output ""
+                     :frame-root nil}
                     cache/lru-cache-factory)))
-
-(defn frame-zipper [frame]
-  (zip/zipper coll?
-              seq
-              (fn [fr children]
-                (cond
-                  (list? fr) 
-                  (with-meta (into '() (reverse children)) (meta fr))
-                  
-                  (vector? fr)
-                  (with-meta (into [] children) (meta fr))
-
-                  (set? fr)
-                  (with-meta (into #{} children) (meta fr))
-                  
-                  (map? fr)
-                  (with-meta (into {} children) (meta fr))
-                  
-                  :else
-                  (throw (ex-info "Unsupported collection type. Cannot make new node." {:frame fr
-                                                                                        :children children}))))
-              frame))
-
-(defn zip-to-selected [zipper]
-  (loop [loc zipper]
-    (cond
-      (zip/end? loc)
-      (zip/root loc)
-
-      (:selected? (meta (zip/node loc)))
-      loc
-
-      :else
-      (recur (zip/next loc)))))
-
-(defn select-left [loc]
-  (if (= loc (zip/leftmost loc))
-    loc
-    (-> loc
-        (zip/edit vary-meta assoc :selected? false)
-        (zip/left)
-        (zip/edit vary-meta assoc :selected? true))))
-
-(defn select-right [loc]
-  (if (= loc (zip/rightmost loc))
-    loc
-    (-> loc
-        (zip/edit vary-meta assoc :selected? false)
-        (zip/right)
-        (zip/edit vary-meta assoc :selected? true))))
-
-(defn select-leftmost [loc]
-  (if (= loc (zip/leftmost loc))
-    loc
-    (-> loc
-        (zip/edit vary-meta assoc :selected? false)
-        (zip/leftmost)
-        (zip/edit vary-meta assoc :selected? true))))
-
-(defn select-rightmost [loc]
-  (if (= loc (zip/rightmost loc))
-    loc
-    (-> loc
-        (zip/edit vary-meta assoc :selected? false)
-        (zip/rightmost)
-        (zip/edit vary-meta assoc :selected? true))))
-
-(defn select-up [loc]
-  (if (zip/up loc)
-    (-> loc
-        (zip/edit vary-meta assoc :selected? false)
-        (zip/up)
-        (zip/edit vary-meta assoc :selected? true))
-    loc))
-
-(defn select-down [loc]
-  (if (zip/down loc)
-    (-> loc
-        (zip/edit vary-meta assoc :selected? false)
-        (zip/down)
-        (zip/edit vary-meta assoc :selected? true))
-    loc))
-
-(defn select-nth-level [loc n]
-  (let [depth (-> loc zip/path count)
-        ups (- depth n)]
-    (if (< ups 0)
-      loc
-      (let [unselected (zip/edit loc vary-meta assoc :selected? false)
-            unwound (nth (iterate zip/up unselected) ups)]
-        (zip/edit unwound vary-meta assoc :selected? true)))))
-
-(defn remove-selected [loc]
-  (-> loc 
-      (zip/remove)
-      (zip/edit vary-meta assoc :selected? true)))
-
-(defn remove-selected-to-left [loc]
-  (let [remaining (zip/rights loc)
-        old-parent (zip/up loc)
-        new-parent (zip/make-node old-parent (zip/node old-parent) remaining)
-        replaced (zip/replace old-parent new-parent)]
-    (if (seq remaining)
-      (-> replaced zip/down (zip/edit vary-meta assoc :selected? true))
-      (zip/edit replaced vary-meta assoc :selected? true))))
-
-(defn remove-selected-to-right [loc]
-  (let [remaining (zip/lefts loc)
-        old-parent (zip/up loc)
-        new-parent (zip/make-node old-parent (zip/node old-parent) remaining)
-        replaced (zip/replace old-parent new-parent)]
-    (if (seq remaining)
-      (-> replaced zip/down zip/rightmost (zip/edit vary-meta assoc :selected? true))
-      (zip/edit replaced vary-meta assoc :selected? true))))
-
-(defn move-selected-left [loc]
-  (if (zip/left loc)
-    (let [node (zip/node loc)
-          left-node (zip/node (zip/left loc))
-          removed (zip/remove loc)]
-      (loop [loc removed]
-        (if (= left-node (zip/node loc))
-          (zip/insert-left loc node)
-          (recur (zip/prev loc)))))
-    loc))
-
-(defn move-selected-right [loc]
-  (if (zip/right loc)
-    (let [node (zip/node loc)
-          right-node (zip/node (zip/right loc))
-          removed (zip/remove loc)]
-      (loop [loc removed]
-        (if (= right-node (zip/node loc))
-          (zip/insert-right loc node)
-          (recur (zip/next loc)))))
-    loc))
-
-(defn move-selected-leftmost [loc]
-  (if (zip/left loc)
-    (let [node (zip/node loc)
-          leftmost-node (zip/node (zip/leftmost loc))
-          removed (zip/remove loc)]
-      (loop [loc removed]
-        (if (= leftmost-node (zip/node loc))
-          (zip/insert-left loc node)
-          (recur (zip/prev loc)))))
-    loc))
-
-(defn move-selected-rightmost [loc]
-  (if (zip/right loc)
-    (let [node (zip/node loc)
-          rightmost-node (zip/node (zip/rightmost loc))
-          removed (zip/remove loc)]
-      (loop [loc removed]
-        (if (= rightmost-node (zip/node loc))
-          (zip/insert-right loc node)
-          (recur (zip/next loc)))))
-    loc))
-
-(defn move-selected-up [loc]
-  (if (zip/up loc)
-    (let [node (zip/node loc)
-          leftmost (nil? (zip/left loc))
-          move (if leftmost identity zip/up)]
-      (-> loc
-          (zip/remove)
-          move
-          (zip/insert-left node)))
-    loc))
-
-(defn move-selected-down [loc]
-  (if (-> loc zip/next zip/down)
-    (let [node (zip/node loc)]
-      (-> loc
-          (zip/remove)
-          (zip/next)
-          (zip/down)
-          (zip/insert-left node)))
-    loc))
-
-(defn move-selected-previous [loc]
-  (let [node (zip/node loc)
-        removed (zip/remove loc)]
-    (if (zip/branch? removed)
-      (-> removed
-          (zip/append-child node))
-      (-> removed
-          (zip/insert-right node)))))
-
-(defn move-selected-next [loc]
-  (let [node (zip/node loc)
-        removed (zip/remove loc)]
-    (cond
-      (zip/end? (zip/next loc))
-      (-> removed
-          (zip/up)
-          (zip/insert-right node)
-          (zip/right))
-      
-      (zip/branch? (zip/next loc))
-      (-> removed
-          (zip/next)
-          (zip/insert-child loc)
-          (zip/down))
-      
-      :else
-      (-> removed
-          (zip/next)
-          (zip/insert-right loc)
-          (zip/right)))))
-
-(defn clone-selected-left [loc]
-  (let [node (zip/node loc)]
-    (-> loc
-        (zip/insert-left node)
-        (select-left))))
-
-(defn clone-selected-right [loc]
-  (let [node (zip/node loc)]
-    (-> loc
-        (zip/insert-right node)
-        (select-right))))
-
-(defmulti frame->form :type)
-
-(defmethod frame->form :default [frame]
-  frame)
 
 (def rainbow-fg-colors ["red" "orange" "yellow" "green" "blue" "indigo" "violet"])
 
@@ -260,73 +36,28 @@
            :-fx-border-color (if selected? "purple" "transparent")}
    :text " "})
 
-(defn value-frame-view [{:keys [fx/context frame selected? nest-level]}]
-  {:fx/type :label
-   :style {:-fx-font-size 24
-           :-fx-border-color (if selected? "purple" "transparent")}
-   :text (pr-str frame)})
-
-(defn list-frame-view [{:keys [fx/context frame selected? nest-level]}]
-  {:fx/type :h-box
-   :style {:-fx-font-size 24
-           :-fx-border-color (if selected? "purple" "transparent")}
-   :children [{:fx/type :label
-               :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
-               :text "("}
-              {:fx/type :h-box
-               :spacing 5
-               :children (map (fn [child] 
-                                {:fx/type frame-view
-                                 :frame child 
-                                 :selected? (:selected? (meta frame))
-                                 :nest-level (inc nest-level)}) 
-                              frame)}
-              {:fx/type :label
-               :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
-               :text ")"}]})
-
-(defn buffer-frame-view [{:keys [fx/context selected? frame]}]
-  {:fx/type :flow-pane
-   :style {:-fx-border-color (if selected? "purple" "transparent")}
-   :orientation :vertical
-   :children (map (fn [child]
-                    {:fx/type frame-view
-                     :frame child
-                     :selected? (:selected? (meta frame))
-                     :nest-level 0})
-                  frame)})
-
-(defn frame-view [{:keys [fx/context frame selected? nest-level]}]
-  (cond
-    (= :insert (:type (meta frame)))
-    {:fx/type insert-frame-view
-     :frame frame
-     :selected? (:selected? (meta frame))}
-
-    (= :buffer (:type (meta frame)))
-    {:fx/type buffer-frame-view
-     :frame frame
-     :selected? (:selected? (meta frame))}
-
-    (list? frame)
-    {:fx/type list-frame-view
-     :frame frame
-     :selected? (:selected? (meta frame))
-     :nest-level nest-level}
-
-    :else
-    {:fx/type value-frame-view
-     :frame frame
-     :selected? (:selected? (meta frame))
-     :nest-level nest-level}))
-
-(defn text-buffer-view [{:keys [fx/context]}]
-  {:fx/type :text-area
-   :editable false
-   :text (fx/sub-val context (comp #(string/join "\n\n" %)
-                                   #(map pr-str %)
-                                   #(map frame->form %)
-                                   :frames))})
+(defn node-frame-view [{:keys [fx/context frame nest-level]}]
+  (if (re-node/inner? frame)
+    {:fx/type :h-box
+     :style {:-fx-font-size 24
+             :-fx-border-color (if (::frame/selected frame) "purple" "transparent")}
+     :children [{:fx/type :label
+                 :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
+                 :text (frame/text frame)}
+                {:fx/type :h-box
+                 :spacing 5
+                 :children (map (fn [child]
+                                  {:fx/type node-frame-view
+                                   :frame child
+                                   :nest-level (inc nest-level)})
+                                frame)}
+                {:fx/type :label
+                 :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
+                 :text (frame/text frame)}]}
+    {:fx/type :label
+     :style {:-fx-font-size 24
+             :-fx-border-color (if (::frame/selected frame) "purple" "transparent")}
+     :text (frame/text frame)}))
 
 (defn editor [{:keys [fx/context]}]
   {:fx/type :stage
@@ -338,31 +69,38 @@
            :root {:fx/type :v-box
                   :padding 10
                   :event-filter {:event/type ::editor-event-filter}
-                  :children [{:fx/type frame-view
+                  :children [{:fx/type node-frame-view
                               :v-box/vgrow :always
-                              :frame (fx/sub-val context :frame-root)}
-                             {:fx/type text-buffer-view}]}}})
+                              :frame (fx/sub-val context :frame-root)
+                              :next-level 0}
+                             {:fx/type :h-box
+                              :children [{:fx/type :text-area
+                                          :editable false
+                                          :text (fx/sub-val context :text-input)
+                                          :on-text-changed {:event/type ::on-text-input}}
+                                         {:fx/type :text-area
+                                          :editable false
+                                          :text (fx/sub-val context (comp frame/text :frame-root))}]}]}}})
 
 (defmulti event-handler :event/type)
 
-(defmethod event-handler ::text-buffer-change [{:keys [fx/event fx/context]}]
+(defmethod event-handler ::on-text-input [{:keys [fx/event fx/context]}]
   (try
-    (let [form (read-string event)]
-      [[:context (fx/swap-context context assoc :text event)]
-       [:context (fx/swap-context context assoc :form form)]])
-    (catch Exception _
-      [[:context (fx/swap-context context assoc :text event)]])))
+    (let [node (lang-clj/text->frames event)
+          frame (assoc node ::frame/selected true)]
+      [[:context (fx/swap-context context assoc :text-input frame)]
+       [:context (fx/swap-context context assoc :frame-root frame)]])))
 
 (defmethod event-handler ::editor-event-filter [{:keys [fx/event fx/context]}]
   (when (and (instance? KeyEvent event) (= KeyEvent/KEY_RELEASED (.getEventType event)))
     (cond
       (.match (KeyCombination/valueOf "left") event)
-      [[:select-move {:frame-root (fx/sub-val context :frame-root)
-                      :direction :left}]]
+      [[:context (fx/swap-context context assoc :frame-root (lang-clj/act-on-selected (fx/sub-val context :frame-root)
+                                                                                      lang-clj/select-left))]]
 
       (.match (KeyCombination/valueOf "right") event)
-      [[:select-move {:frame-root (fx/sub-val context :frame-root)
-                      :direction :right}]]
+      [[:context (fx/swap-context context assoc :frame-root (lang-clj/act-on-selected (fx/sub-val context :frame-root)
+                                                                                      lang-clj/select-right))]]
 
       (.match (KeyCombination/valueOf "up") event)
       [[:select-move {:frame-root (fx/sub-val context :frame-root)
@@ -450,106 +188,6 @@
       [[:remove-selected {:frame-root (fx/sub-val context :frame-root)
                           :target :right}]])))
 
-(defmethod event-handler ::on-selection-change [{:keys [fx/context frame-root]}]
-  [[:context (fx/swap-context context assoc :frame-root frame-root)]])
-
-(defn select-move [{:keys [frame-root direction]} dispatch!]
-  (let [loc (zip-to-selected (frame-zipper frame-root))
-        edited (cond
-                 (= :left direction)
-                 (select-left loc)
-
-                 (= :right direction)
-                 (select-right loc)
-
-                 (= :leftmost direction)
-                 (select-leftmost loc)
-
-                 (= :rightmost direction)
-                 (select-rightmost loc)
-
-                 (= :up direction)
-                 (select-up loc)
-
-                 (= :down direction)
-                 (select-down loc)
-
-                 :else
-                 (throw (ex-info "Invalid direction" {:direction direction})))
-        new-root (-> edited zip/root)]
-    (dispatch! {:event/type ::on-selection-change
-                :frame-root new-root})))
-
-(defn select-level [{:keys [frame-root level]} dispatch!]
-  (let [loc (zip-to-selected (frame-zipper frame-root))
-        edited (select-nth-level loc level)
-        new-root (-> edited zip/root)]
-    (dispatch! {:event/type ::on-selection-change
-                :frame-root new-root})))
-
-(defn move-selected [{:keys [frame-root direction]} dispatch!]
-  (let [loc (zip-to-selected (frame-zipper frame-root))
-        edited (cond
-                 (= :left direction)
-                 (move-selected-left loc)
-
-                 (= :right direction)
-                 (move-selected-right loc)
-
-                 (= :leftmost direction)
-                 (move-selected-leftmost loc)
-
-                 (= :rightmost direction)
-                 (move-selected-rightmost loc)
-
-                 (= :up direction)
-                 (move-selected-up loc)
-
-                 (= :down direction)
-                 (move-selected-down loc)
-
-                 (= :previous direction)
-                 (move-selected-previous loc)
-
-                 (= :next direction)
-                 (move-selected-next loc)
-
-                 :else
-                 (throw (ex-info "Invalid direction" {:direction direction})))
-        new-root (-> edited zip/root)]
-    (dispatch! {:event/type ::on-selection-change
-                :frame-root new-root})))
-
-(defn clone-selected [{:keys [frame-root direction]} dispatch!]
-  (let [loc (zip-to-selected (frame-zipper frame-root))
-        edited (cond
-                 (= :left direction)
-                 (clone-selected-left loc)
-
-                 (= :right direction)
-                 (clone-selected-right loc)
-
-                 :else
-                 (throw (ex-info "Invalid direction" {:direction direction})))
-        new-root (-> edited zip/root)]
-    (dispatch! {:event/type ::on-selection-change
-                :frame-root new-root})))
-
-(defn do-remove-selected [{:keys [frame-root target]} dispatch!]
-  (let [loc (zip-to-selected (frame-zipper frame-root))
-        edited (cond
-                 (= :current target)
-                 (remove-selected loc)
-                 
-                 (= :left target)
-                 (remove-selected-to-left loc)
-                 
-                 (= :right target)
-                 (remove-selected-to-right loc))
-        new-root (-> edited zip/root)]
-    (dispatch! {:event/type ::on-selection-change
-                :frame-root new-root})))
-
 (defn start []
   (fx/create-app
    *state
@@ -557,43 +195,7 @@
    :desc-fn (fn [_] {:fx/type editor})
    :co-effects {:fx/context (fx/make-deref-co-effect *state)}
    :effects {:context (fx/make-reset-effect *state)
-             :dispatch fx/dispatch-effect
-             :select-move select-move
-             :select-level select-level
-             :move-selected move-selected
-             :clone-selected clone-selected
-             :remove-selected do-remove-selected}))
+             :dispatch fx/dispatch-effect}))
 
 (defn stop [{:keys [renderer]}]
   (fx/unmount-renderer *state renderer))
-
-(comment
-  *e
-
-
-
-  (-> @*state :cljfx.context/m)
-
-  (def z (frame-zipper (-> @*state :cljfx.context/m :frame-root)))
-
-  (zip-to-selected z)
-
-  (-> z select-down zip/root)
-
-  (-> z zip-to-selected zip/remove zip/up (zip/insert-left {:my-node "yeay"}) (zip/left))
-  (-> @*state :cljfx.context/m :frame-root frame-zipper zip-to-selected move-selected-previous zip/root)
-  (-> @*state :cljfx.context/m :frame-root frame-zipper zip-to-selected)
-  (-> @*state :cljfx.context/m :frame-root meta)
-  (-> @*state :cljfx.context/m :frame-root first (nth 3) meta)
-  (-> @*state :cljfx.context/m :frame-root second first meta)
-
-
-  (letfn [(modify [frame f] (-> frame frame-zipper zip-to-selected f zip/root))]
-    (binding [*print-meta* true]
-      (-> @*state :cljfx.context/m :frame-root
-          (modify select-down)
-          (modify select-down)
-          pr-str)))
-          
-
-  ,)
