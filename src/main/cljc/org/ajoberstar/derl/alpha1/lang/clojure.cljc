@@ -7,6 +7,7 @@
             [rewrite-clj.zip :as re-zip]
             #?(:cljs [cljs.reader])))
 
+;; FIXME need to reference the node records not the protocol
 (extend-protocol frame/Frame
   re-protocols/Node
   (data [frame] (re-node/sexpr frame))
@@ -17,9 +18,6 @@
 
 (defn data->frames [data]
   data)
-
-(defn find-all [loc f p?]
-  (keep identity (iterate #(re-zip/find-next % f p?) (rewrite-zip/find loc f p?))))
 
 (defn act-on-selected [frame action]
   (let [zipper (re-zip/zipper frame)]
