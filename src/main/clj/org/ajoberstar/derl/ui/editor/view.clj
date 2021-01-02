@@ -43,7 +43,7 @@
              :-fx-border-color (if (::frame/selected frame) "purple" "transparent")}
      :children [{:fx/type :label
                  :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
-                 :text (frame/text frame)}
+                 :text (re-node/sexpr frame)}
                 {:fx/type :h-box
                  :spacing 5
                  :children (map (fn [child]
@@ -53,11 +53,11 @@
                                 frame)}
                 {:fx/type :label
                  :style {:-fx-text-fill (get-color rainbow-fg-colors nest-level)}
-                 :text (frame/text frame)}]}
+                 :text (re-node/sexpr frame)}]}
     {:fx/type :label
      :style {:-fx-font-size 24
              :-fx-border-color (if (::frame/selected frame) "purple" "transparent")}
-     :text (frame/text frame)}))
+     :text (re-node/sexpr frame)}))
 
 (defn editor [{:keys [fx/context]}]
   {:fx/type :stage

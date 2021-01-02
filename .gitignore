@@ -1,5 +1,6 @@
-# Deps
+# Clojure Tooling
+.calva/
+.clj-kondo/
 .cpcache/
-
-# Rebel
+.lsp/
 .rebel_readline_history

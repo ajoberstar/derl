@@ -8,19 +8,19 @@
             #?(:cljs [cljs.reader])))
 
 ;; FIXME need to reference the node records not the protocol
-(extend-protocol frame/Frame
-  re-protocols/Node
-  (data [frame] (re-node/sexpr frame))
-  (text [frame] (re-node/string frame)))
+; (extend-protocol frame/Frame
+;   re-protocols/Node
+;   (data [frame] (re-node/sexpr frame))
+;   (text [frame] (re-node/string frame)))
 
 (defn text->frames [text]
-  (re-parser/string-all text))
+  (re-parser/parse-string-all text))
 
 (defn data->frames [data]
   data)
 
 (defn act-on-selected [frame action]
-  (let [zipper (re-zip/zipper frame)]
+  (let [zipper (re-zip/edn* frame)]
     (-> (re-zip/find zipper re-zip/next ::frame/selected)
         action
         (re-zip/root)
@@ -59,14 +59,14 @@
   (select loc re-zip/rightmost))
 
 ;; FIXME this won't work
-(defn select-nth-level [loc n]
-  (let [depth (-> loc re-zip/path count)
-        ups (- depth n)]
-    (if (< ups 0)
-      loc
-      (let [unselected (re-zip/edit loc assoc ::frame/selected false)
-            unwound (nth (iterate re-zip/up unselected) ups)]
-        (re-zip/edit unwound assoc ::frame/selected true)))))
+; (defn select-nth-level [loc n]
+;   (let [depth (-> loc re-zip/path count)
+;         ups (- depth n)]
+;     (if (< ups 0)
+;       loc
+;       (let [unselected (re-zip/edit loc assoc ::frame/selected false)
+;             unwound (nth (iterate re-zip/up unselected) ups)]
+;         (re-zip/edit unwound assoc ::frame/selected true)))))
 
 (defn remove-selected [loc]
   (-> loc 
