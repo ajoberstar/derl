@@ -3,4 +3,5 @@
 .clj-kondo/
 .cpcache/
 .lsp/
+.nrepl-port
 .rebel_readline_history
