@@ -1,6 +1,5 @@
 (ns dev
   (:require [clojure.tools.namespace.repl :as repl]
-            [org.ajoberstar.derl.ui :as ui]
             [org.ajoberstar.derl.ui.editor.view :as editor]))
 
 (def app nil)

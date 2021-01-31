@@ -69,27 +69,27 @@
 ;         (re-zip/edit unwound assoc ::frame/selected true)))))
 
 (defn remove-selected [loc]
-  (-> loc 
+  (-> loc
       (re-zip/remove)
       (re-zip/edit assoc ::frame/selected true)))
 
-(defn remove-selected-to-left [loc]
-  (let [remaining (re-zip/rights loc)
-        old-parent (re-zip/up loc)
-        new-parent (re-zip/make-node old-parent (re-zip/node old-parent) remaining)
-        replaced (re-zip/replace old-parent new-parent)]
-    (if (seq remaining)
-      (-> replaced re-zip/down (re-zip/edit assoc ::frame/selected true))
-      (re-zip/edit replaced assoc ::frame/selected true))))
+; (defn remove-selected-to-left [loc]
+;   (let [remaining (re-zip/rights loc)
+;         old-parent (re-zip/up loc)
+;         new-parent (re-zip/make-node old-parent (re-zip/node old-parent) remaining)
+;         replaced (re-zip/replace old-parent new-parent)]
+;     (if (seq remaining)
+;       (-> replaced re-zip/down (re-zip/edit assoc ::frame/selected true))
+;       (re-zip/edit replaced assoc ::frame/selected true))))
 
-(defn remove-selected-to-right [loc]
-  (let [remaining (re-zip/lefts loc)
-        old-parent (re-zip/up loc)
-        new-parent (re-zip/make-node old-parent (re-zip/node old-parent) remaining)
-        replaced (re-zip/replace old-parent new-parent)]
-    (if (seq remaining)
-      (-> replaced re-zip/down re-zip/rightmost (re-zip/edit assoc ::frame/selected true))
-      (re-zip/edit replaced assoc ::frame/selected true))))
+; (defn remove-selected-to-right [loc]
+;   (let [remaining (re-zip/lefts loc)
+;         old-parent (re-zip/up loc)
+;         new-parent (re-zip/make-node old-parent (re-zip/node old-parent) remaining)
+;         replaced (re-zip/replace old-parent new-parent)]
+;     (if (seq remaining)
+;       (-> replaced re-zip/down re-zip/rightmost (re-zip/edit assoc ::frame/selected true))
+;       (re-zip/edit replaced assoc ::frame/selected true))))
 
 (defn move-selected-left [loc]
   (if (re-zip/left loc)
@@ -159,7 +159,7 @@
 (defn move-selected-previous [loc]
   (let [node (re-zip/node loc)
         removed (re-zip/remove loc)]
-    (if (re-zip/branch? removed)
+    (if (re-node/inner? removed)
       (-> removed
           (re-zip/append-child node))
       (-> removed
@@ -174,13 +174,13 @@
           (re-zip/up)
           (re-zip/insert-right node)
           (re-zip/right))
-      
-      (re-zip/branch? (re-zip/next loc))
+
+      (re-node/inner? (re-zip/next loc))
       (-> removed
           (re-zip/next)
           (re-zip/insert-child loc)
           (re-zip/down))
-      
+
       :else
       (-> removed
           (re-zip/next)

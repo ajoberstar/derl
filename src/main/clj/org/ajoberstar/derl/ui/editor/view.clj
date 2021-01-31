@@ -5,12 +5,12 @@
             [clojure.zip :as zip]
             [org.ajoberstar.derl.alpha1.frame :as frame]
             [org.ajoberstar.derl.alpha1.lang.clojure :as lang-clj]
-            [refactor-clj.node :as re-node]
-            [refactor-clj.zip :as re-zip])
+            [rewrite-clj.node :as re-node]
+            [rewrite-clj.zip :as re-zip])
   (:import [javafx.scene.input KeyCombination KeyEvent]))
 
-(def *state (atom (fx/create-context 
-                    {:text-input "(defn foo [x y]
+(def *state (atom (fx/create-context
+                   {:text-input "(defn foo [x y]
                                       (+ x y 2))
                                     
                                     (defn bar [x & rest]
@@ -18,9 +18,9 @@
                                         (into [z] (comp (map inc)
                                                         (filter even?)) 
                                               rest)))"
-                     :text-output ""
-                     :frame-root nil}
-                    cache/lru-cache-factory)))
+                    :text-output ""
+                    :frame-root nil}
+                   cache/lru-cache-factory)))
 
 (def rainbow-fg-colors ["red" "orange" "yellow" "green" "blue" "indigo" "violet"])
 
@@ -112,11 +112,11 @@
 
       (.match (KeyCombination/valueOf "ctrl+left") event)
       [[:select-move {:frame-root (fx/sub-val context :frame-root)
-                        :direction :leftmost}]]
+                      :direction :leftmost}]]
 
       (.match (KeyCombination/valueOf "ctrl+right") event)
       [[:select-move {:frame-root (fx/sub-val context :frame-root)
-                        :direction :rightmost}]]
+                      :direction :rightmost}]]
 
       (.match (KeyCombination/valueOf "alt+left") event)
       [[:move-selected {:frame-root (fx/sub-val context :frame-root)
@@ -149,11 +149,11 @@
       (.match (KeyCombination/valueOf "alt+shift+right") event)
       [[:clone-selected {:frame-root (fx/sub-val context :frame-root)
                          :direction :right}]]
-      
+
       (.match (KeyCombination/valueOf "1") event)
       [[:select-level {:frame-root (fx/sub-val context :frame-root)
                        :level 0}]]
-      
+
       (.match (KeyCombination/valueOf "2") event)
       [[:select-level {:frame-root (fx/sub-val context :frame-root)
                        :level 1}]]
@@ -173,17 +173,17 @@
       (.match (KeyCombination/valueOf "shift:tab") event)
       [[:move-selected {:frame-root (fx/sub-val context :frame-root)
                         :direction :next}]]
-      
+
       (or (.match (KeyCombination/valueOf "backspace") event)
           (.match (KeyCombination/valueOf "delete") event)
           (.match (KeyCombination/valueOf "d") event))
       [[:remove-selected {:frame-root (fx/sub-val context :frame-root)
                           :target :current}]]
-                          
+
       (.match (KeyCombination/valueOf "ctrl+backspace") event)
       [[:remove-selected {:frame-root (fx/sub-val context :frame-root)
                           :target :left}]]
-                          
+
       (.match (KeyCombination/valueOf "ctrl+delete") event)
       [[:remove-selected {:frame-root (fx/sub-val context :frame-root)
                           :target :right}]])))

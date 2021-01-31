@@ -1,6 +1,5 @@
 (ns org.ajoberstar.derl.alpha1.lang.clojure.paredit)
 
-
 ;; Create node
 (defn paredit-open-round [ctx loc])
 (defn paredit-open-square [ctx loc])
