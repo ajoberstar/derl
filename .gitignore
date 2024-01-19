@@ -5,3 +5,7 @@
 .lsp/
 .nrepl-port
 .rebel_readline_history
+
+# Gradle
+.gradle/
+build/
